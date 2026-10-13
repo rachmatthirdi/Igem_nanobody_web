@@ -67,7 +67,7 @@
     }
   }
 
-  // ---------------- GPU badge + system monitor ----------------
+  // ---------------- GPU badge + GPU/OS status (shown in Settings) ----------------
   async function refreshGpuStatus() {
     try {
       const status = await window.api.checkGpu();
@@ -98,16 +98,14 @@
     refreshDockerStorageMonitor();
   }
 
-  // Shown in the sidebar regardless of install status (unlike the install
-  // banner, which hides itself once installMode === "docker") - this is the
-  // one place in the UI to always check where the ~19GB image actually
+  // Shown in Settings > Docker tools regardless of install status (unlike the
+  // install banner, which hides itself once installMode === "docker") - this
+  // is the one place in the UI to always check where the ~19GB image actually
   // lives, since that's Docker's own managed storage, not this app's folder.
+  // (The image name itself is the "Docker image" field in the same dialog.)
   async function refreshDockerStorageMonitor() {
     const info = await window.api.getDockerStorageInfo();
-    const imgEl = $("mon-docker-image");
     const storageEl = $("mon-docker-storage");
-    imgEl.textContent = info.dockerImage || "-";
-    imgEl.title = info.dockerImage || "";
     storageEl.textContent = info.dockerRootDir || "not detected";
     storageEl.title = info.dockerRootDir || "Docker not running or not found";
   }

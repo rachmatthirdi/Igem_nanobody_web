@@ -38,7 +38,7 @@
       </header>
 
       <div id="body-layout">
-        <!-- ==================== SIDEBAR: PIPELINE NAV + SYSTEM MONITOR ==================== -->
+        <!-- ==================== SIDEBAR: PIPELINE NAV ==================== -->
         <aside id="sidebar">
           <h3>Pipeline Flow</h3>
           <ol class="pipeline-steps">
@@ -55,36 +55,6 @@
               <button type="button" class="step-btn">4. Construct</button>
             </li>
           </ol>
-          <hr />
-          <h3>System Monitor</h3>
-          <div class="monitor-row">
-            <span class="monitor-label">GPU</span>
-            <span id="mon-gpu" class="monitor-value">-</span>
-          </div>
-          <div class="monitor-row">
-            <span class="monitor-label">VRAM</span>
-            <span id="mon-vram" class="monitor-value">-</span>
-          </div>
-          <div class="monitor-row">
-            <span class="monitor-label">Detected OS</span>
-            <span id="mon-detected-os" class="monitor-value">-</span>
-          </div>
-          <div class="monitor-row">
-            <span class="monitor-label">Docker image</span>
-            <span
-              id="mon-docker-image"
-              class="monitor-value monitor-value-truncate"
-              >-</span
-            >
-          </div>
-          <div class="monitor-row">
-            <span class="monitor-label">Docker storage</span>
-            <span
-              id="mon-docker-storage"
-              class="monitor-value monitor-value-truncate"
-              >-</span
-            >
-          </div>
         </aside>
 
         <!-- ==================== MAIN CONTENT ==================== -->
@@ -907,48 +877,81 @@
       <div id="settings-modal" class="modal hidden">
         <div class="modal-content">
           <h2>⚙️ Settings</h2>
-          <div class="form-row">
-            <label>Docker image</label
-            ><input type="text" id="set-dockerImage" />
-          </div>
-          <div class="form-row">
-            <label>GPU detection</label>
-            <select id="set-gpuOverride">
-              <option value="auto">Auto-detect (recommended)</option>
-              <option value="on">Force GPU on</option>
-              <option value="off">Force CPU (disable GPU)</option>
-            </select>
-          </div>
-          <div class="section-hint">
-            If auto-detection gets it wrong (e.g. drivers are installed but not
-            picked up), override it here rather than editing files. This setting
-            only skips our detection - it can't make Docker reach a GPU that
-            isn't actually passed through. Verify that separately:
-          </div>
-          <div class="form-row">
-            <label>Verify GPU access</label>
-            <button id="btn-test-gpu" class="btn btn-secondary">
-              Test GPU access
-            </button>
-            <span id="gpu-test-status" style="margin-left: 8px"></span>
-          </div>
-          <div class="form-row">
-            <label>Docker tools image</label>
-            <button id="btn-build-docker" class="btn btn-secondary">
-              Download tools image
-            </button>
-            <span id="docker-build-status" style="margin-left: 8px"></span>
-          </div>
-          <div class="section-hint">
-            Downloads the pre-built image from Docker Hub (fast, no compiling -
-            recommended for almost everyone). Modified
-            <code>docker/Dockerfile</code> yourself, or would rather build from
-            source?
-            <button type="button" id="btn-build-docker-source" class="btn-link">
-              Build from source instead
-            </button>
-            (slower, ~20-30 min).
-          </div>
+
+          <section class="settings-section">
+            <h3>Compute configuration</h3>
+            <div class="form-row">
+              <label>Docker image</label
+              ><input type="text" id="set-dockerImage" />
+            </div>
+            <div class="form-row">
+              <label>GPU detection</label>
+              <select id="set-gpuOverride">
+                <option value="auto">Auto-detect (recommended)</option>
+                <option value="on">Force GPU on</option>
+                <option value="off">Force CPU (disable GPU)</option>
+              </select>
+            </div>
+            <div class="section-hint">
+              If auto-detection gets it wrong (e.g. drivers are installed but
+              not picked up), override it here rather than editing files. This
+              setting only skips our detection - it can't make Docker reach a
+              GPU that isn't actually passed through. Verify that separately:
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3>Diagnostics</h3>
+            <div class="monitor-row">
+              <span class="monitor-label">GPU</span>
+              <span id="mon-gpu" class="monitor-value">-</span>
+            </div>
+            <div class="monitor-row">
+              <span class="monitor-label">VRAM</span>
+              <span id="mon-vram" class="monitor-value">-</span>
+            </div>
+            <div class="monitor-row">
+              <span class="monitor-label">Detected OS</span>
+              <span id="mon-detected-os" class="monitor-value">-</span>
+            </div>
+            <div class="form-row">
+              <label>Verify GPU access</label>
+              <button id="btn-test-gpu" class="btn btn-secondary">
+                Test GPU access
+              </button>
+              <span id="gpu-test-status"></span>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3>Docker tools</h3>
+            <div class="monitor-row">
+              <span class="monitor-label">Docker storage</span>
+              <span id="mon-docker-storage" class="monitor-value">-</span>
+            </div>
+            <div class="form-row">
+              <label>Docker tools image</label>
+              <button id="btn-build-docker" class="btn btn-secondary">
+                Download tools image
+              </button>
+              <span id="docker-build-status"></span>
+            </div>
+            <div class="section-hint">
+              Downloads the pre-built image from Docker Hub (fast, no compiling
+              - recommended for almost everyone). Modified
+              <code>docker/Dockerfile</code> yourself, or would rather build
+              from source?
+              <button
+                type="button"
+                id="btn-build-docker-source"
+                class="btn-link"
+              >
+                Build from source instead
+              </button>
+              (slower, ~20-30 min).
+            </div>
+          </section>
+
           <div class="modal-actions">
             <button id="btn-settings-save" class="btn btn-primary">Save</button>
             <button id="btn-settings-close" class="btn btn-ghost">Close</button>
