@@ -37,26 +37,25 @@
         </div>
       </header>
 
-      <div id="body-layout">
-        <!-- ==================== SIDEBAR: PIPELINE NAV ==================== -->
-        <aside id="sidebar">
-          <h3>Pipeline Flow</h3>
-          <ol class="pipeline-steps">
-            <li data-step="target" class="active">
-              <button type="button" class="step-btn" aria-current="step">1. Target</button>
-            </li>
-            <li data-step="design">
-              <button type="button" class="step-btn">2. Design</button>
-            </li>
-            <li data-step="screening">
-              <button type="button" class="step-btn">3. Screening</button>
-            </li>
-            <li data-step="construct">
-              <button type="button" class="step-btn">4. Construct</button>
-            </li>
-          </ol>
-        </aside>
+      <!-- ==================== PIPELINE NAV (horizontal stepper) ==================== -->
+      <nav id="pipeline-nav" class="pipeline-nav" aria-label="Pipeline stages">
+        <ol class="pipeline-steps">
+          <li data-step="target" class="active">
+            <button type="button" class="step-btn" aria-current="step">1. Target</button>
+          </li>
+          <li data-step="design">
+            <button type="button" class="step-btn">2. Design</button>
+          </li>
+          <li data-step="screening">
+            <button type="button" class="step-btn">3. Screening</button>
+          </li>
+          <li data-step="construct">
+            <button type="button" class="step-btn">4. Construct</button>
+          </li>
+        </ol>
+      </nav>
 
+      <div id="body-layout">
         <!-- ==================== MAIN CONTENT ==================== -->
         <main id="main-content">
           <nav id="tabs">

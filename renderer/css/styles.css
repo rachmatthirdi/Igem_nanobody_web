@@ -9,7 +9,7 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces: page < raised (header/sidebar/inputs) < card */
+  /* Surfaces: page < raised (header/nav/inputs) < card */
   --bg: #09090b;
   --bg-elev: #111114;
   --bg-card: #18181b;
@@ -219,47 +219,53 @@ h3 {
   min-height: 0;
 }
 
-#sidebar {
-  width: 220px;
+/* Horizontal pipeline stepper, directly under the header. It is a flex child
+   of #app (not of the scrolling workspace), so it stays visible while the
+   stage content scrolls. */
+.pipeline-nav {
   flex-shrink: 0;
+  padding: 6px 16px;
   background: var(--bg-elev);
-  border-right: 1px solid var(--border);
-  padding: 14px 12px;
-  overflow-y: auto;
-}
-#sidebar h3 {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin: 4px 0 8px;
-  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; /* narrow windows: scroll the row instead of clipping */
 }
 .pipeline-steps {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 2px;
+  width: max-content;
 }
-/* Primary pipeline navigation. The <li> carries the .active state set by
-   switchTab(); the inner <button> provides click, focus and keyboard. */
 .pipeline-steps li {
-  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
 }
+/* Decorative right-facing chevron between stages. */
+.pipeline-steps li + li::before {
+  content: "";
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--text-dim);
+  opacity: 0.6;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* The <li> carries the .active state set by switchTab(); the inner <button>
+   provides click, focus and keyboard and is what gets highlighted. */
 .step-btn {
-  display: block;
-  width: 100%;
-  padding: 8px 10px;
+  padding: 6px 14px;
   background: transparent;
   border: none;
   border-radius: 6px;
   color: var(--text-dim);
   font-size: 13px;
   font-weight: 500;
-  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     color 0.15s ease,
@@ -272,13 +278,11 @@ h3 {
 .step-btn:focus-visible {
   outline-offset: -2px;
 }
-.pipeline-steps li.active {
-  background: var(--muted);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
 .pipeline-steps li.active .step-btn {
+  background: var(--muted);
   color: var(--text);
   font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 #main-content {
@@ -290,7 +294,7 @@ h3 {
 }
 
 /* ---------------- Tabs ---------------- */
-/* Superseded by the sidebar navigation (.step-btn). Kept in the DOM so
+/* Superseded by the pipeline stepper (.step-btn). Kept in the DOM so
    existing JS selectors keep working; not shown or focusable. */
 #tabs {
   display: none;
@@ -1450,9 +1454,6 @@ input[type="range"] {
   }
 }
 @media (max-width: 720px) {
-  #sidebar {
-    width: 180px;
-  }
   .anchor-cards {
     flex-wrap: wrap;
   }

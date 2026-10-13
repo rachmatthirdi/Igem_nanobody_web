@@ -110,10 +110,10 @@
   // ---------------- Guided tour ----------------
   const STEPS = [
     {
-      sel: "#sidebar",
+      sel: "#pipeline-nav",
       title: "Pipeline navigation",
       text: "Move through the four stages here: Target, Design, Screening and Construct. Click a stage to open it; the highlighted one is where you are now.",
-      place: "right",
+      place: "bottom",
     },
     {
       sel: "#main-content",

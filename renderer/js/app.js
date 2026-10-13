@@ -34,7 +34,7 @@
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
     });
-    // The sidebar steps are the visible navigation; the .tab-btn row above
+    // The pipeline stepper is the visible navigation; the .tab-btn row above
     // stays in the DOM (hidden by CSS) so both paths share switchTab().
     document.querySelectorAll(".pipeline-steps li").forEach((li) => {
       li.addEventListener("click", () => switchTab(li.dataset.step));
