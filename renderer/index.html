@@ -847,7 +847,7 @@
       </div>
 
       <!-- ==================== LIVE CONSOLE FOOTER ==================== -->
-      <footer id="console-footer" class="collapsed">
+      <footer id="console-footer">
         <div id="console-header">
           <span>🖥 Live Console</span>
           <div class="console-header-actions">
@@ -969,6 +969,72 @@
           </div>
         </div>
       </div>
+
+      <!-- ==================== WELCOME MODAL (first run) ==================== -->
+      <div id="welcome-modal" class="modal hidden">
+        <div
+          class="modal-content welcome-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="welcome-title"
+        >
+          <h2 id="welcome-title">🔬 Nanobody Designer</h2>
+          <p class="welcome-lead">
+            A guided workflow for designing nanobodies: pick a target protein,
+            generate and screen candidates, then export a ready-to-order
+            plasmid.
+          </p>
+          <p class="welcome-flow">Target → Design → Screening → Construct</p>
+          <div class="welcome-actions">
+            <button id="btn-welcome-new" class="btn btn-primary">
+              Create New
+            </button>
+            <button id="btn-welcome-load" class="btn btn-secondary">
+              Load Existing
+            </button>
+          </div>
+          <div class="welcome-more">
+            <button type="button" id="btn-welcome-tour" class="btn-link">
+              Take a quick tour
+            </button>
+            <button id="btn-welcome-skip" class="btn btn-ghost">
+              Skip for now
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== GUIDED TOUR OVERLAY ==================== -->
+      <div id="tour" class="tour hidden" aria-hidden="true">
+        <div class="tour-blocker"></div>
+        <div class="tour-spotlight"></div>
+        <div
+          id="tour-tip"
+          class="tour-tip"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tour-title"
+          aria-describedby="tour-text"
+        >
+          <button
+            type="button"
+            id="btn-tour-close"
+            class="tour-close"
+            aria-label="Close tour"
+          >
+            ×
+          </button>
+          <div id="tour-progress" class="tour-progress"></div>
+          <h3 id="tour-title" class="tour-title"></h3>
+          <p id="tour-text" class="tour-text"></p>
+          <div class="tour-actions">
+            <button id="btn-tour-skip" class="btn btn-ghost">Skip tour</button>
+            <span class="tour-spacer"></span>
+            <button id="btn-tour-back" class="btn btn-secondary">Back</button>
+            <button id="btn-tour-next" class="btn btn-primary">Next</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script defer src="js/state.js"></script>
@@ -983,5 +1049,6 @@
     <script defer src="js/tab-screening.js"></script>
     <script defer src="js/tab-construct.js"></script>
     <script defer src="js/app.js"></script>
+    <script defer src="js/onboarding.js"></script>
   </body>
 </html>

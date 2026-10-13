@@ -1176,6 +1176,10 @@ input[type="range"] {
   background: var(--muted);
   color: var(--text);
 }
+/* ▲ means "expand" while collapsed; point down ("collapse") when open. */
+#console-footer:not(.collapsed) #btn-console-toggle {
+  transform: rotate(180deg);
+}
 #console-body {
   height: 180px;
   overflow-y: auto;
@@ -1322,6 +1326,118 @@ input[type="range"] {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ---------------- Welcome dialog + guided tour ---------------- */
+.welcome-content {
+  width: min(460px, 100%);
+}
+.welcome-lead {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.welcome-flow {
+  margin: 0 0 18px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.welcome-actions {
+  display: flex;
+  gap: 8px;
+}
+.welcome-actions .btn {
+  flex: 1;
+}
+.welcome-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+.tour.hidden {
+  display: none;
+}
+/* Swallows clicks so nothing underneath can be activated during the tour. */
+.tour-blocker {
+  position: absolute;
+  inset: 0;
+}
+/* The spotlight dims everything outside its box with a huge box-shadow. */
+.tour-spotlight {
+  position: absolute;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 100vmax var(--overlay);
+}
+.tour-tip {
+  position: absolute;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  padding: 16px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow-lg);
+}
+.tour-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.tour-close:hover {
+  background: var(--muted);
+  color: var(--text);
+}
+.tour-progress {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.tour-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.tour-text {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tour-actions .btn[hidden] {
+  display: none;
+}
+.tour-spacer {
+  flex: 1;
 }
 
 /* ---------------- Responsive ---------------- */
