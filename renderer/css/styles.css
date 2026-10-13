@@ -1,18 +1,75 @@
+/* =====================================================================
+   Design tokens
+   Original names (--bg, --bg-elev, --bg-card, --border, --text, --text-dim,
+   --accent, --accent-dim, --ok, --warn, --error, --sasa-color,
+   --disco-color, --radius) are kept; they are used throughout this file and
+   by inline styles written from JS (e.g. var(--text-dim)).
+   Zinc-neutral surfaces + a restrained blue accent (shadcn/ui-inspired).
+   ===================================================================== */
 :root {
-  --bg: #0f1115;
-  --bg-elev: #161a21;
-  --bg-card: #1b202a;
-  --border: #2a3140;
-  --text: #e6e9ef;
-  --text-dim: #8a93a6;
-  --accent: #4f8cff;
-  --accent-dim: #2f5fb3;
-  --ok: #33c37c;
-  --warn: #e0b13a;
-  --error: #e05a4f;
+  color-scheme: dark;
+
+  /* Surfaces: page < raised (header/sidebar/inputs) < card */
+  --bg: #09090b;
+  --bg-elev: #111114;
+  --bg-card: #18181b;
+  --border: #27272a;
+  --text: #fafafa;
+  --text-dim: #a1a1aa;
+
+  /* Accent */
+  --accent: #3b82f6;
+  --accent-dim: #1e40af;
+
+  /* Status */
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --error: #ef4444;
+
+  /* Track colours (not referenced in CSS today; kept as-is) */
   --sasa-color: #3d7fd6;
   --disco-color: #e0684f;
-  --radius: 10px;
+
+  /* Shape + elevation */
+  --radius: 8px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+
+  /* Typography */
+  --font-sans:
+    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+
+  /* shadcn-style semantic aliases (new; point at the tokens above) */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--bg-card);
+  --popover: var(--bg);
+  --popover-foreground: var(--text);
+  --muted: #27272a;
+  --muted-foreground: var(--text-dim);
+  --primary: #2563eb; /* solid fills; --accent is for text/borders on dark */
+  --primary-foreground: #fff;
+  --accent-foreground: #fff; /* text on --accent-dim fills */
+  --destructive: var(--error);
+  --ring: var(--accent);
+  --selection-bg: color-mix(in srgb, var(--accent) 45%, transparent);
+  --selection-fg: #fff;
+
+  /* Tints derived from the status/accent tokens */
+  --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
+  --accent-subtle: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-faint: color-mix(in srgb, var(--accent) 6%, transparent);
+  --accent-highlight: color-mix(in srgb, var(--accent) 35%, transparent);
+  --ok-soft: color-mix(in srgb, var(--ok) 15%, transparent);
+  --error-soft: color-mix(in srgb, var(--error) 15%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 12%, transparent);
+
+  /* Fixed values that must NOT follow the theme */
+  --viewer-bg: #05070a; /* must match bgColor {5,7,10} in js/viewer3d.js */
+  --contrast-ring: #fff; /* matches the inline #fff boxShadow set in tab-target.js */
+  --overlay: rgba(0, 0, 0, 0.6);
 }
 
 * {
@@ -25,12 +82,32 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    "Segoe UI",
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+/* Console output: a bit stronger so selected log lines stay readable. */
+#console-body ::selection {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* Low-specificity focus ring: any component rule can still override it. */
+:where(button, input, select, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 #app {
@@ -79,21 +156,21 @@ body {
   cursor: pointer;
 }
 .badge-muted {
-  background: #2a3140;
+  background: var(--muted);
   color: var(--text-dim);
 }
 .badge-ok {
-  background: rgba(51, 195, 124, 0.15);
+  background: var(--ok-soft);
   color: var(--ok);
   border-color: var(--ok);
 }
 .badge-error {
-  background: rgba(224, 90, 79, 0.15);
+  background: var(--error-soft);
   color: var(--error);
   border-color: var(--error);
 }
 .badge-running {
-  background: rgba(79, 140, 255, 0.15);
+  background: var(--accent-soft);
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -171,7 +248,7 @@ body {
 }
 .pipeline-steps li.active {
   background: var(--accent-dim);
-  color: #fff;
+  color: var(--accent-foreground);
   font-weight: 600;
 }
 
@@ -229,6 +306,7 @@ body {
   border-radius: var(--radius);
   padding: 18px 20px;
   margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
 }
 .card h2 {
   margin: 0 0 14px;
@@ -264,6 +342,109 @@ select {
   padding: 7px 10px;
   font-size: 13px;
 }
+/* Dropdowns: custom closed state. The open option list is drawn by the
+   browser/OS; only background, colour and font can be set on it. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 34px;
+  padding-right: 32px;
+  cursor: pointer;
+  background-color: var(--bg-elev);
+  /* Chevron: data: URI so no extra file is needed (CSP allows data:). The
+     stroke is fixed to match --text-dim (#a1a1aa); CSS vars don't work here. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+select:hover:not(:disabled) {
+  border-color: var(--text-dim);
+}
+select:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+select option {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+/* Customizable select (Chromium 135+; this app ships 146). Replaces the
+   OS-drawn option list with a styleable picker. Browsers without support
+   keep the fallback styling above. */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    background-image: none; /* the fallback chevron; ::picker-icon replaces it */
+    padding-right: 10px;
+    align-items: center;
+    gap: 10px;
+  }
+  select::picker-icon {
+    content: "";
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    background: var(--text-dim);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: transform 0.15s ease;
+  }
+  select:open::picker-icon {
+    transform: rotate(180deg);
+  }
+  select::picker(select) {
+    background: var(--bg-card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-top: 4px;
+    box-shadow: var(--shadow-lg);
+  }
+  select option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+  }
+  select option:hover,
+  select option:focus-visible {
+    background: var(--muted);
+    outline: none;
+  }
+  select option:checked {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  select option::checkmark {
+    content: "";
+    width: 14px;
+    height: 14px;
+    order: 1;
+    margin-left: auto;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+}
+
 input[type="range"] {
   flex: 1;
   accent-color: var(--accent);
@@ -304,7 +485,7 @@ input[type="range"] {
 .chip.selected {
   background: var(--accent-dim);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground);
 }
 
 /* ---------------- Buttons ---------------- */
@@ -326,9 +507,9 @@ input[type="range"] {
   cursor: not-allowed;
 }
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
 }
 .btn-secondary {
   background: var(--bg-elev);
@@ -388,7 +569,7 @@ input[type="range"] {
   font-weight: 600;
 }
 .gpu-warning {
-  background: rgba(224, 177, 58, 0.12);
+  background: var(--warn-soft);
   border: 1px solid var(--warn);
   color: var(--warn);
   padding: 10px 14px;
@@ -420,7 +601,7 @@ input[type="range"] {
 
 /* ---------------- Sequence / tracks ---------------- */
 .sequence-view {
-  font-family: "Consolas", monospace;
+  font-family: var(--font-mono);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -432,7 +613,7 @@ input[type="range"] {
   overflow-y: auto;
 }
 .aa-cdr {
-  background: rgba(79, 140, 255, 0.35);
+  background: var(--accent-highlight);
   border-radius: 2px;
 }
 
@@ -444,7 +625,7 @@ input[type="range"] {
 }
 .viewer3d-container {
   height: 380px;
-  background: #05070a;
+  background: var(--viewer-bg);
   border-radius: 8px;
   border: 1px solid var(--border);
   position: relative;
@@ -487,7 +668,7 @@ input[type="range"] {
   border-radius: 4px;
   background: var(--accent-dim);
   font-size: 9px;
-  color: #fff;
+  color: var(--accent-foreground);
   overflow: hidden;
   white-space: nowrap;
   padding: 0 4px;
@@ -503,13 +684,13 @@ input[type="range"] {
   bottom: 0;
 }
 .track-cell.hotspot-selected {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--contrast-ring);
   outline-offset: -2px;
 }
 .track-tooltip {
   position: absolute;
-  background: #000;
-  color: #fff;
+  background: var(--popover);
+  color: var(--popover-foreground);
   padding: 6px 9px;
   border-radius: 6px;
   font-size: 11px;
@@ -540,7 +721,7 @@ input[type="range"] {
 }
 .hotspot-chip {
   background: var(--accent-dim);
-  color: #fff;
+  color: var(--accent-foreground);
   border-radius: 12px;
   padding: 3px 9px;
   font-size: 11px;
@@ -644,7 +825,7 @@ input[type="range"] {
   font-size: 10px;
 }
 .data-table tr:hover {
-  background: rgba(79, 140, 255, 0.06);
+  background: var(--accent-faint);
 }
 .cdr-len-input {
   width: 70px;
@@ -725,7 +906,7 @@ input[type="range"] {
 }
 .anchor-card.selected {
   border-color: var(--accent);
-  background: rgba(79, 140, 255, 0.08);
+  background: var(--accent-subtle);
 }
 .anchor-card-title {
   font-weight: 700;
@@ -776,7 +957,7 @@ input[type="range"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
-  font-family: "Consolas", monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   max-height: 220px;
   overflow: auto;
@@ -834,7 +1015,7 @@ input[type="range"] {
   height: 220px;
   overflow-y: auto;
   padding: 8px 16px;
-  font-family: "Consolas", monospace;
+  font-family: var(--font-mono);
   font-size: 11.5px;
   border-top: 1px solid var(--border);
 }
@@ -863,7 +1044,7 @@ input[type="range"] {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -880,6 +1061,7 @@ input[type="range"] {
   width: 560px;
   max-height: 80vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-lg);
 }
 .modal-content h2 {
   margin-top: 0;
@@ -919,6 +1101,9 @@ input[type="range"] {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
 }
 ::-webkit-scrollbar-track {
   background: transparent;
