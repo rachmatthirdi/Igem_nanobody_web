@@ -38,8 +38,24 @@
       </header>
 
       <div id="body-layout">
-        <!-- ==================== SIDEBAR: SYSTEM MONITOR ==================== -->
+        <!-- ==================== SIDEBAR: PIPELINE NAV + SYSTEM MONITOR ==================== -->
         <aside id="sidebar">
+          <h3>Pipeline Flow</h3>
+          <ol class="pipeline-steps">
+            <li data-step="target" class="active">
+              <button type="button" class="step-btn" aria-current="step">1. Target</button>
+            </li>
+            <li data-step="design">
+              <button type="button" class="step-btn">2. Design</button>
+            </li>
+            <li data-step="screening">
+              <button type="button" class="step-btn">3. Screening</button>
+            </li>
+            <li data-step="construct">
+              <button type="button" class="step-btn">4. Construct</button>
+            </li>
+          </ol>
+          <hr />
           <h3>System Monitor</h3>
           <div class="monitor-row">
             <span class="monitor-label">GPU</span>
@@ -69,14 +85,6 @@
               >-</span
             >
           </div>
-          <hr />
-          <h3>Pipeline Flow</h3>
-          <ol class="pipeline-steps">
-            <li data-step="target">1. Target</li>
-            <li data-step="design">2. Design</li>
-            <li data-step="screening">3. Screening</li>
-            <li data-step="construct">4. Construct</li>
-          </ol>
         </aside>
 
         <!-- ==================== MAIN CONTENT ==================== -->

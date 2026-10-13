@@ -229,20 +229,8 @@ h3 {
   padding: 14px 12px;
   overflow-y: auto;
 }
-/* Visual order only (the DOM is untouched): pipeline stages first, the
-   system monitor below as secondary information. */
 #sidebar > * {
-  order: 4;
   flex-shrink: 0;
-}
-#sidebar > h3:last-of-type {
-  order: 1;
-}
-#sidebar > .pipeline-steps {
-  order: 2;
-}
-#sidebar > hr {
-  order: 3;
 }
 #sidebar h3 {
   font-size: 10px;
@@ -288,19 +276,41 @@ h3 {
   flex-direction: column;
   gap: 2px;
 }
-/* These items are an indicator, not links: no hover or pointer styling. */
+/* Primary pipeline navigation. The <li> carries the .active state set by
+   switchTab(); the inner <button> provides click, focus and keyboard. */
 .pipeline-steps li {
+  border-radius: 6px;
+}
+.step-btn {
+  display: block;
+  width: 100%;
   padding: 8px 10px;
+  background: transparent;
+  border: none;
   border-radius: 6px;
   color: var(--text-dim);
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+.pipeline-steps li:not(.active) .step-btn:hover {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  color: var(--text);
+}
+.step-btn:focus-visible {
+  outline-offset: -2px;
 }
 .pipeline-steps li.active {
   background: var(--muted);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.pipeline-steps li.active .step-btn {
   color: var(--text);
   font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 #main-content {
@@ -312,8 +322,10 @@ h3 {
 }
 
 /* ---------------- Tabs ---------------- */
+/* Superseded by the sidebar navigation (.step-btn). Kept in the DOM so
+   existing JS selectors keep working; not shown or focusable. */
 #tabs {
-  display: flex;
+  display: none;
   gap: 2px;
   padding: 6px 16px 0;
   background: var(--bg);

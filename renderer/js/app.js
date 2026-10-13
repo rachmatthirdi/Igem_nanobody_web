@@ -13,7 +13,14 @@
       .forEach((p) => p.classList.toggle("active", p.id === `tab-${name}`));
     document
       .querySelectorAll(".pipeline-steps li")
-      .forEach((li) => li.classList.toggle("active", li.dataset.step === name));
+      .forEach((li) => {
+        const active = li.dataset.step === name;
+        li.classList.toggle("active", active);
+        const btn = li.querySelector(".step-btn");
+        if (!btn) return;
+        if (active) btn.setAttribute("aria-current", "step");
+        else btn.removeAttribute("aria-current");
+      });
 
     if (name === "design" && window.TabDesign?.onActivate)
       window.TabDesign.onActivate();
@@ -26,6 +33,11 @@
   function wireTabs() {
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+    // The sidebar steps are the visible navigation; the .tab-btn row above
+    // stays in the DOM (hidden by CSS) so both paths share switchTab().
+    document.querySelectorAll(".pipeline-steps li").forEach((li) => {
+      li.addEventListener("click", () => switchTab(li.dataset.step));
     });
   }
 
