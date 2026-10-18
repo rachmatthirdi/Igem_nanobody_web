@@ -33,3 +33,6 @@ Thumbs.db
 # Local env overrides (never commit machine-specific paths/secrets)
 .env
 .env.local
+
+# iGEM wiki drafts (kept local)
+software-wiki/

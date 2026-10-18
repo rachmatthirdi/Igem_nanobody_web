@@ -1,4 +1,4 @@
-# Nanobody Designer
+# CATCHERs: Software
 
 A desktop GUI (Electron) for a nanobody design pipeline: **Target → Design →
 Screening → Construct**. It orchestrates RCSB PDB, InterPro, FreeSASA,
