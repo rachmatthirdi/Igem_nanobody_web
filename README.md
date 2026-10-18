@@ -252,6 +252,45 @@ work/        scratch files for the pipeline
 Platform test results are tracked in
 [docs/PLATFORM_NOTES.md](docs/PLATFORM_NOTES.md).
 
+## Run the tools without the app
+
+The Python tools in `python/` also run on their own inside the tools image.
+[`scripts/nbtool.sh`](scripts/nbtool.sh) wraps the `docker run` call on Linux,
+macOS and WSL:
+
+```bash
+scripts/nbtool.sh run_freesasa.py 1ZVH_chainA.pdb sasa.json
+scripts/nbtool.sh codon_optimize.py --protein MKTAYIAKQRQISFVKSHFSRQ --out codon.json
+```
+
+Run it from the folder that holds your files and give paths relative to that
+folder, because only the current folder is mounted. `scripts/nbtool.sh --help`
+lists the scripts and the settings (`NB_IMAGE`, `NB_ENV`, `NB_CACHE`).
+
+## Tests
+
+```bash
+npm test
+```
+
+This runs two small suites that need no Docker. `tests/aa.test.js` covers the
+amino-acid table and uses Node's built-in test runner. `tests/test_tools.py`
+covers restriction-site finding and removal, the E. coli codon table, the Codon
+Adaptation Index and GC content, and uses only the Python standard library. On
+Windows the Python suite needs `python` instead of `python3`: run
+`python -m unittest discover -s tests -p "test_*.py"`.
+
+They cover the pure logic that builds the insert. They do not cover the Electron
+main process, the interface, Docker orchestration or the scientific tools.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+The scientific tools in the Docker image are separate works under their own
+licenses, and **DiscoTope-3.0 and the RF2 weights are licensed for
+non-commercial use only**. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Appendix: install without Docker
 
 Docker is the tested, recommended path. This appendix is for running the

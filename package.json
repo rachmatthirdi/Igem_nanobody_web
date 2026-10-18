@@ -4,11 +4,14 @@
   "description": "CATCHERs Generator, a nanobody design GUI: Target -> Design -> Screening -> Construct",
   "main": "electron/main.js",
   "author": "CATCHERs",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "test": "npm run test:js && npm run test:py",
+    "test:js": "node tests/aa.test.js",
+    "test:py": "python3 -m unittest discover -s tests -p \"test_*.py\""
   },
   "devDependencies": {
     "electron": "^41.10.7"
