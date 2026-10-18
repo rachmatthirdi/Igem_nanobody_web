@@ -21,7 +21,7 @@ def main():
 
     for w in result["warnings"]:
         print(f"WARNING: {w}")
-    print(f"Codon optimization selesai ({result['method']}), CAI={result['cai']:.4f}")
+    print(f"Codon optimization done ({result['method']}), CAI={result['cai']:.4f}")
 
 
 if __name__ == "__main__":

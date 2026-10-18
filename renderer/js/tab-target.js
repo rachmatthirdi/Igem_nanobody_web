@@ -5,29 +5,7 @@
     resMax = 0;
   let resNumToAA = new Map(); // chain A resNum -> one-letter amino acid code, for labels like "L102"
 
-  const AA_3TO1 = {
-    ALA: "A",
-    ARG: "R",
-    ASN: "N",
-    ASP: "D",
-    CYS: "C",
-    GLN: "Q",
-    GLU: "E",
-    GLY: "G",
-    HIS: "H",
-    ILE: "I",
-    LEU: "L",
-    LYS: "K",
-    MET: "M",
-    PHE: "F",
-    PRO: "P",
-    SER: "S",
-    THR: "T",
-    TRP: "W",
-    TYR: "Y",
-    VAL: "V",
-    MSE: "M",
-  };
+  const AA_3TO1 = window.AA_3TO1;
 
   function $(id) {
     return document.getElementById(id);
@@ -456,10 +434,25 @@
     });
   }
 
+  // Repopulates the Target tab's DOM (input field, tracks, 3D viewer,
+  // hotspot chips) from window.AppState after a project load - applyLoaded()
+  // only replaces the in-memory state, it never touches the DOM itself.
+  async function refresh() {
+    if (!window.AppState.pdbId || !window.AppState.pdbPath) {
+      $("analysis-progress-card").style.display = "none";
+      $("hotspot-map-card").style.display = "none";
+      return;
+    }
+    $("pdb-id-input").value = window.AppState.pdbId;
+    $("analysis-progress-card").style.display = "none";
+    await renderHotspotMap();
+  }
+
   window.TabTarget = {
     init() {
       wireInput();
       wireHotspotControls();
     },
+    refresh,
   };
 })();

@@ -13,7 +13,14 @@
       .forEach((p) => p.classList.toggle("active", p.id === `tab-${name}`));
     document
       .querySelectorAll(".pipeline-steps li")
-      .forEach((li) => li.classList.toggle("active", li.dataset.step === name));
+      .forEach((li) => {
+        const active = li.dataset.step === name;
+        li.classList.toggle("active", active);
+        const btn = li.querySelector(".step-btn");
+        if (!btn) return;
+        if (active) btn.setAttribute("aria-current", "step");
+        else btn.removeAttribute("aria-current");
+      });
 
     if (name === "design" && window.TabDesign?.onActivate)
       window.TabDesign.onActivate();
@@ -26,6 +33,11 @@
   function wireTabs() {
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+    // The pipeline stepper is the visible navigation; the .tab-btn row above
+    // stays in the DOM (hidden by CSS) so both paths share switchTab().
+    document.querySelectorAll(".pipeline-steps li").forEach((li) => {
+      li.addEventListener("click", () => switchTab(li.dataset.step));
     });
   }
 
@@ -55,7 +67,7 @@
     }
   }
 
-  // ---------------- GPU badge + system monitor ----------------
+  // ---------------- GPU badge + GPU/OS status (shown in Settings) ----------------
   async function refreshGpuStatus() {
     try {
       const status = await window.api.checkGpu();
@@ -86,16 +98,14 @@
     refreshDockerStorageMonitor();
   }
 
-  // Shown in the sidebar regardless of install status (unlike the install
-  // banner, which hides itself once installMode === "docker") - this is the
-  // one place in the UI to always check where the ~19GB image actually
+  // Shown in Settings > Docker tools regardless of install status (unlike the
+  // install banner, which hides itself once installMode === "docker") - this
+  // is the one place in the UI to always check where the ~19GB image actually
   // lives, since that's Docker's own managed storage, not this app's folder.
+  // (The image name itself is the "Docker image" field in the same dialog.)
   async function refreshDockerStorageMonitor() {
     const info = await window.api.getDockerStorageInfo();
-    const imgEl = $("mon-docker-image");
     const storageEl = $("mon-docker-storage");
-    imgEl.textContent = info.dockerImage || "-";
-    imgEl.title = info.dockerImage || "";
     storageEl.textContent = info.dockerRootDir || "not detected";
     storageEl.title = info.dockerRootDir || "Docker not running or not found";
   }
@@ -115,52 +125,12 @@
     $("install-banner").style.display = "";
     $("install-no-docker").style.display = docker.available ? "none" : "";
     $("install-ready").style.display = docker.available ? "" : "none";
-    if (!docker.available) {
-      renderDockerFailure(docker);
-      return;
-    }
-    // Docker works, but something about this host means the containers never
-    // will. Say so here rather than after a 19 GB download.
-    if (docker.blockers?.length) {
-      $("install-no-docker").style.display = "";
-      $("install-ready").style.display = "none";
-      $("install-docker-reason").textContent = docker.blockers[0];
-      return;
-    }
+    if (!docker.available) return;
 
     const info = await window.api.getDockerStorageInfo();
     $("install-storage-path").textContent =
       info.dockerRootDir || "unknown (docker info failed)";
     $("install-image-name").textContent = info.dockerImage;
-  }
-
-  // Docker being unavailable has three different fixes, and telling everyone
-  // to go install Docker only helps one of them. The "permission" case in
-  // particular is the standard first-install slip on Linux: `usermod -aG
-  // docker` doesn't take effect until you log out, so the CLI is right there
-  // and still can't reach the socket.
-  const DOCKER_FAILURE_TEXT = {
-    "not-installed":
-      "Docker isn't installed on this machine. Install Docker (Docker Desktop " +
-      "on macOS/Windows, Docker Engine on Linux), then reopen this app.",
-    "not-running":
-      "Docker is installed but its daemon isn't running. Start Docker Desktop, " +
-      "or on Linux run: sudo systemctl start docker",
-    permission:
-      "Docker is installed but this user can't reach it (permission denied). " +
-      "On Linux: sudo usermod -aG docker $USER - then log out and back in for " +
-      "it to take effect.",
-    unknown: "Docker was found but didn't respond to a version check.",
-  };
-
-  function renderDockerFailure(docker) {
-    const el = $("install-docker-reason");
-    if (!el) return;
-    el.textContent =
-      (DOCKER_FAILURE_TEXT[docker.reason] || DOCKER_FAILURE_TEXT.unknown) +
-      (docker.detail ? ` (${docker.detail})` : "") +
-      // Replaces the generic advice above when we can name the actual cause.
-      (docker.hint ? ` — ${docker.hint}` : "");
   }
 
   function dismissInstallBanner() {
@@ -385,8 +355,14 @@
           const data = await window.api.loadProject(p.id);
           window.StateUtils.applyLoaded(data);
           $("projects-modal").classList.add("hidden");
+          // applyLoaded() only replaces window.AppState - each tab must be
+          // told to redraw itself from it, or it keeps showing whatever was
+          // on screen before the load (Target/Design had no such hook at
+          // all until now, which is exactly why they didn't update).
+          await window.TabTarget?.refresh();
+          window.TabDesign?.refresh();
           window.TabScreening?.refresh();
-          window.TabConstruct?.refreshCandidateOptions?.();
+          window.TabConstruct?.refresh?.();
           window.ConsolePanel.log(
             "ok",
             `Project "${p.name}" loaded.`,

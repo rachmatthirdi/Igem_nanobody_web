@@ -6,29 +6,7 @@
   async function extractAminoAcidSeq(candidate) {
     const pdbText = await window.api.readPdbFile(candidate.pdbPath);
     const seenRes = new Set();
-    const AA_3TO1 = {
-      ALA: "A",
-      ARG: "R",
-      ASN: "N",
-      ASP: "D",
-      CYS: "C",
-      GLN: "Q",
-      GLU: "E",
-      GLY: "G",
-      HIS: "H",
-      ILE: "I",
-      LEU: "L",
-      LYS: "K",
-      MET: "M",
-      PHE: "F",
-      PRO: "P",
-      SER: "S",
-      THR: "T",
-      TRP: "W",
-      TYR: "Y",
-      VAL: "V",
-      MSE: "M",
-    };
+    const AA_3TO1 = window.AA_3TO1;
     let seq = "";
     for (const line of pdbText.split(/\r?\n/)) {
       if (!line.startsWith("ATOM")) continue;
@@ -267,7 +245,7 @@
         );
       }
       for (const note of result.notes || []) {
-        if (note.startsWith("PelB dilewati"))
+        if (note.startsWith("PelB skipped"))
           window.ConsolePanel.log("warn", note, "construct");
       }
 
@@ -282,6 +260,63 @@
         `Failed to assemble plasmid: ${e.message}`,
         "construct",
       );
+    }
+  }
+
+  // Full re-render of the Construct tab from window.AppState after a
+  // project load. refreshCandidateOptions() alone only rebuilds the
+  // candidate <select> - it was written to keep that dropdown in sync with
+  // newly-optimized candidates on every tab activation, not to restore a
+  // whole loaded project, which is why anchor selection, codon results,
+  // and both previews stayed blank even though the data was in AppState.
+  function refresh() {
+    refreshCandidateOptions();
+    const s = window.AppState;
+
+    document
+      .querySelectorAll(".anchor-card")
+      .forEach((c) => c.classList.remove("selected"));
+    if (s.anchor) {
+      const card = document.querySelector(
+        `.anchor-card[data-anchor="${s.anchor.type}"]`,
+      );
+      if (card) card.classList.add("selected");
+      showAnchor(s.anchor); // also re-applies the PelB gate
+    } else {
+      $("anchor-sequence-card").style.display = "none";
+      $("btn-build-anchor-construct").disabled = true;
+    }
+
+    const withDna = s.candidates.filter((c) => c.dna);
+    $("codon-results").innerHTML = withDna
+      .map(
+        (c) => `
+          <div class="card">
+            <div class="section-label">${c.id} — method: ${c.codonMethod || "-"}</div>
+            <div class="sequence-view">${c.dna}</div>
+            <div class="anchor-meta">CAI: ${c.cai?.toFixed(3) ?? "-"} &nbsp;|&nbsp; GC%: ${c.gcContent?.toFixed(1) ?? "-"}%</div>
+          </div>`,
+      )
+      .join("");
+    if (s.constructCandidateId)
+      $("construct-candidate-select").value = s.constructCandidateId;
+
+    if (s.constructDna) {
+      $("anchor-construct-preview").textContent = s.constructDna;
+      $("btn-build-plasmid").disabled = false;
+    } else {
+      $("anchor-construct-preview").textContent = "";
+      $("btn-build-plasmid").disabled = true;
+    }
+
+    if (s.plasmid) {
+      if (s.plasmid.vector) $("vector-select").value = s.plasmid.vector;
+      $("plasmid-preview").style.display = "";
+      $("plasmid-fasta-preview").textContent = s.plasmid.preview;
+      $("plasmid-meta").textContent =
+        `Length: ${s.plasmid.lengthBp} bp | GC%: ${s.plasmid.gcContent?.toFixed(1)}% | CAI: ${s.plasmid.cai?.toFixed(3) ?? "-"} | File: ${s.plasmid.fastaPath}`;
+    } else {
+      $("plasmid-preview").style.display = "none";
     }
   }
 
@@ -306,5 +341,6 @@
       syncPelbAvailability();
     },
     refreshCandidateOptions,
+    refresh,
   };
 })();

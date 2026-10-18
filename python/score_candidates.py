@@ -180,7 +180,7 @@ def _search_pae_key(obj):
 def compute_dg(pdb_path):
     prodigy_exe = shutil.which("prodigy")
     if not prodigy_exe:
-        print("WARNING: PRODIGY tidak ditemukan di PATH; ΔG dilewati.")
+        print("WARNING: PRODIGY not found on PATH; ΔG skipped.")
         return None
     try:
         # prodigy_exe comes from shutil.which() (a trusted PATH lookup, not
@@ -208,7 +208,7 @@ def compute_dg(pdb_path):
         # CalledProcessError/TimeoutExpired: PRODIGY itself failed or hung.
         # IndexError/ValueError: its last line wasn't "<label> <float>" (e.g.
         # PRODIGY's output format changed, or it printed only warnings).
-        print(f"WARNING: PRODIGY gagal untuk {os.path.basename(pdb_path)}: {e}")
+        print(f"WARNING: PRODIGY failed for {os.path.basename(pdb_path)}: {e}")
         return None
 
 
@@ -300,7 +300,7 @@ def main():
                 )
         else:
             print(
-                f"WARNING: tidak dapat menghitung CDR/H3 RMSD untuk {stem} (backbone/chain H tidak ditemukan)."
+                f"WARNING: could not compute CDR/H3 RMSD for {stem} (backbone/chain H not found)."
             )
 
         candidates.append(
@@ -321,7 +321,7 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump({"candidates": candidates}, f)
 
-    print(f"Scoring selesai untuk {len(candidates)} kandidat.")
+    print(f"Scoring done for {len(candidates)} candidates.")
 
 
 if __name__ == "__main__":

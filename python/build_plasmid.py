@@ -66,9 +66,9 @@ def main():
     if include_pelb and params.get("anchorHasNativeSignal"):
         include_pelb = False
         notes.append(
-            "PelB dilewati: anchor yang dipilih sudah membawa signal peptide "
-            "native-nya sendiri, dua signal peptide berderet akan menggagalkan "
-            "ekspor ke membran luar."
+            "PelB skipped: the selected anchor already carries its own native "
+            "signal peptide, and two signal peptides in tandem would defeat "
+            "export to the outer membrane."
         )
 
     pelb_dna = ""

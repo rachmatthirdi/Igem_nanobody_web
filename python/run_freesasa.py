@@ -70,14 +70,14 @@ def main():
             )
     if skipped:
         print(
-            f"WARNING: {skipped} residu dengan insertion code dilewati (nomor residu tidak valid)."
+            f"WARNING: {skipped} residues with insertion codes skipped (residue number not a plain integer)."
         )
 
     residues.sort(key=lambda r: r["resNum"])
     with open(args.out_path, "w", encoding="utf-8") as f:
         json.dump({"residues": residues}, f)
 
-    print(f"FreeSASA selesai: {len(residues)} residu dianalisis.")
+    print(f"FreeSASA done: {len(residues)} residues analysed.")
 
 
 if __name__ == "__main__":

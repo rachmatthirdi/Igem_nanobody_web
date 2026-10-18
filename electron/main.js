@@ -239,12 +239,7 @@ function classifyLine(line) {
   if (l.includes("error") || l.includes("traceback") || l.includes("exception"))
     return "error";
   if (l.includes("warn")) return "warn";
-  if (
-    l.includes("done") ||
-    l.includes("success") ||
-    l.includes("✓") ||
-    l.includes("selesai")
-  )
+  if (l.includes("done") || l.includes("success") || l.includes("✓"))
     return "ok";
   return "info";
 }
@@ -950,6 +945,10 @@ async function runCondaPython(envName, scriptPath, args, opts = {}) {
     `HF_HOME=${DIRS.cacheHf}`,
     "-e",
     `TORCH_HOME=${DIRS.cacheTorch}`,
+    // python/ is bind-mounted; bytecode written there is just litter, and
+    // (as root, before --user) left a __pycache__ the host user can't remove.
+    "-e",
+    "PYTHONDONTWRITEBYTECODE=1",
   ];
   // ROOT is mounted at CROOT and every ROOT-prefixed argument below is
   // rewritten to match by runProcess (see toContainerArg), so callers keep
@@ -1030,29 +1029,7 @@ async function runRfantibodyCommand(commandLine, source, extraMounts = []) {
 // ---------------------------------------------------------------------------
 // PDB helpers (pure JS, no external deps)
 // ---------------------------------------------------------------------------
-const AA_3TO1 = {
-  ALA: "A",
-  ARG: "R",
-  ASN: "N",
-  ASP: "D",
-  CYS: "C",
-  GLN: "Q",
-  GLU: "E",
-  GLY: "G",
-  HIS: "H",
-  ILE: "I",
-  LEU: "L",
-  LYS: "K",
-  MET: "M",
-  PHE: "F",
-  PRO: "P",
-  SER: "S",
-  THR: "T",
-  TRP: "W",
-  TYR: "Y",
-  VAL: "V",
-  MSE: "M",
-};
+const AA_3TO1 = require("../renderer/js/aa.js");
 
 function extractChain(pdbText, chainId) {
   const lines = pdbText.split(/\r?\n/);
@@ -1199,7 +1176,10 @@ function findFileRecursive(dir, matchFn, maxDepth = 3) {
 // IPC: Tab 1 - Target
 // ---------------------------------------------------------------------------
 ipcMain.handle("fetch-pdb", async (_evt, pdbId) => {
-  const id = pdbId.trim().toUpperCase();
+  const id = String(pdbId).trim().toUpperCase();
+  // Becomes a file name under cache/pdb/ and part of the RCSB URL.
+  if (!/^[A-Z0-9]{4}$/.test(id))
+    throw new Error(`Invalid PDB ID: ${JSON.stringify(pdbId)}`);
   const pdbPath = path.join(DIRS.cachePdb, `${id}.pdb`);
   const chainAPath = path.join(DIRS.cachePdb, `${id}_chainA.pdb`);
 
@@ -1253,6 +1233,11 @@ ipcMain.handle("fetch-pdb", async (_evt, pdbId) => {
 ipcMain.handle("read-pdb-file", async (_evt, filePath) => {
   // Also repairs paths saved by earlier runs, e.g. "D:\nbroot\work\x.pdb".
   const fixed = String(filePath).replace(/^(?:[A-Za-z]:)?[\\/]nbroot(?=[\\/])/i, ROOT);
+  // Only this app's own folders: the renderer picks the path, and an
+  // arbitrary one would make this a read-anything-on-disk call.
+  const rel = path.relative(ROOT, path.resolve(fixed));
+  if (rel.startsWith("..") || path.isAbsolute(rel))
+    throw new Error(`Refusing to read outside the app folder: ${filePath}`);
   return fs.readFileSync(fixed, "utf8");
 });
 
@@ -1544,6 +1529,10 @@ ipcMain.handle("run-proteinmpnn", async (_evt, params) => {
 
 ipcMain.handle("run-rf2", async (_evt, params) => {
   const { seqDir, numRecycles } = params;
+  // Docker first: the weights are a 281 MB download, pointless if the stage
+  // can't run afterwards anyway.
+  requireDocker();
+  await ensureMountWorks("rf2");
   await ensureRf2Weights();
   sendProgress("rf2", 10, "running", "Running RF2 (RoseTTAFold2)...");
   const outDir = path.join("work", `rf2_out_${Date.now()}`);
@@ -2340,9 +2329,18 @@ function repairLegacyProjectPath(value, unresolved) {
   return value;
 }
 
+// Project ids arrive from the renderer and become file names, so a "../" in
+// one would otherwise reach outside projects/ (load-project reads it,
+// delete-project unlinks it). Plain names only.
+function projectFilePath(id) {
+  if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(id) || id.includes(".."))
+    throw new Error(`Invalid project id: ${JSON.stringify(id)}`);
+  return path.join(DIRS.projects, `${id}.json`);
+}
+
 ipcMain.handle("save-project", async (_evt, state) => {
   const id = state.id || `project_${Date.now()}`;
-  const filePath = path.join(DIRS.projects, `${id}.json`);
+  const filePath = projectFilePath(id);
   const payload = mapProjectStrings(
     { ...state, id, savedAt: new Date().toISOString() },
     toContainerArg,
@@ -2352,7 +2350,7 @@ ipcMain.handle("save-project", async (_evt, state) => {
 });
 
 ipcMain.handle("load-project", async (_evt, id) => {
-  const filePath = path.join(DIRS.projects, `${id}.json`);
+  const filePath = projectFilePath(id);
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
   const unresolved = [];
   const project = mapProjectStrings(raw, (v) =>
@@ -2391,7 +2389,7 @@ ipcMain.handle("list-projects", async () => {
 });
 
 ipcMain.handle("delete-project", async (_evt, id) => {
-  const filePath = path.join(DIRS.projects, `${id}.json`);
+  const filePath = projectFilePath(id);
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   return true;
 });

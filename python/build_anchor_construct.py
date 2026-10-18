@@ -61,7 +61,7 @@ def main():
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(result, f)
 
-    print(f"Konstruk anchor+linker+nanobody selesai: {len(construct_dna)} bp.")
+    print(f"Anchor+linker+nanobody construct done: {len(construct_dna)} bp.")
 
 
 if __name__ == "__main__":

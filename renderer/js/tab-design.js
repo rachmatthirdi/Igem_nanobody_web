@@ -408,6 +408,61 @@
     updatePipelineEta();
   }
 
+  // Repopulates the Design tab's DOM (scaffold sequence, CDR ranges,
+  // sliders, pipeline badges) from window.AppState after a project load -
+  // applyLoaded() only replaces the in-memory state, it never touches the
+  // DOM itself. Uses the scaffold/config already in AppState rather than
+  // calling loadScaffold(), which only fetches a fresh default and bails
+  // out early whenever a scaffold is already present.
+  function refresh() {
+    const scaffold = window.AppState.scaffold;
+    if (scaffold) {
+      // The true auto-detected ranges aren't in AppState (only the possibly
+      // user-edited ones are) - treating the loaded ranges as "auto" means
+      // the ↺ reset button resets to what was saved, not to what RFantibody
+      // originally detected. Good enough: it's the same gap applyLoaded()
+      // already leaves in every other tab-local, non-persisted variable.
+      cdrAuto = JSON.parse(JSON.stringify(scaffold.cdr || {}));
+      renderScaffoldSequence(scaffold);
+      renderCdrRanges(scaffold.cdr);
+    }
+
+    const cfg = window.AppState.scaffoldConfig;
+    if (cfg) {
+      $("scaffold-select").value = cfg.scaffold_name;
+      $("slider-backbone-number").value = cfg.backbone_number;
+      $("val-backbone-number").textContent = cfg.backbone_number;
+      $("slider-mpnn-designs").value = cfg.mpnn_designs;
+      $("val-mpnn-designs").textContent = cfg.mpnn_designs;
+      $("slider-mpnn-temp").value = cfg.mpnn_temperature;
+      $("val-mpnn-temp").textContent = Number(cfg.mpnn_temperature).toFixed(2);
+      for (const part of (cfg.cdr_config || "").split(",")) {
+        const [label, len] = part.split(":");
+        const el = label && $(`cdr-${label.toLowerCase()}-len`);
+        if (el) el.value = len;
+      }
+    }
+    updatePipelineEta();
+
+    // A loaded project with candidates already ran its design in a past
+    // session - show the pipeline as finished instead of "Waiting", and
+    // unlock Screening, rather than making the user re-run it to get there.
+    if (window.AppState.candidates?.length) {
+      setBadge(
+        "badge-rfdiffusion",
+        `Done (${(window.AppState.backbones || []).length} backbones)`,
+        "badge-ok",
+      );
+      setBadge("badge-proteinmpnn", "Done", "badge-ok");
+      setBadge("badge-rf2-weights", "Done", "badge-ok");
+      setBadge("badge-rf2", "Done", "badge-ok");
+      $("btn-goto-screening").disabled = false;
+    } else {
+      resetPipelineUi();
+      $("btn-goto-screening").disabled = true;
+    }
+  }
+
   window.TabDesign = {
     init() {
       wireSliders();
@@ -452,5 +507,6 @@
       loadScaffold();
       checkGpuWarning();
     },
+    refresh,
   };
 })();
