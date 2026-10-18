@@ -75,7 +75,7 @@
       } catch (e) {
         window.ConsolePanel.log(
           "error",
-          `Codon optimization failed for ${id}: ${e.message}`,
+          `Codon optimization failed for ${id}: ${window.Messages.clean(e)}`,
           "construct",
         );
       }
@@ -106,7 +106,7 @@
     } catch (e) {
       window.ConsolePanel.log(
         "error",
-        `Failed to fetch anchor ${type}: ${e.message}`,
+        `Failed to fetch anchor ${type}: ${window.Messages.clean(e)}`,
         "construct",
       );
       return null;
@@ -136,7 +136,6 @@
       (breakdown ? ` — ${breakdown}` : "") +
       `${anchor.fromCache ? " (cache)" : " (live)"}`;
     $("anchor-sequence-view").textContent = anchor.sequence;
-    $("btn-build-anchor-construct").disabled = false;
     syncPelbAvailability();
   }
 
@@ -169,7 +168,7 @@
     const withDna = window.AppState.candidates.filter((c) => c.dna);
     if (!withDna.length) {
       select.innerHTML =
-        '<option value="">No candidates with optimized DNA yet (finish the Screening tab first)</option>';
+        '<option value="">No candidates with optimized DNA yet. Optimize codons first.</option>';
       return;
     }
     for (const c of withDna) {
@@ -203,11 +202,10 @@
       window.AppState.constructDna = result.construct_dna;
       window.AppState.constructComponents = result.components;
       $("anchor-construct-preview").textContent = result.construct_dna;
-      $("btn-build-plasmid").disabled = false;
     } catch (e) {
       window.ConsolePanel.log(
         "error",
-        `Failed to build anchor construct: ${e.message}`,
+        `Failed to build anchor construct: ${window.Messages.clean(e)}`,
         "construct",
       );
     }
@@ -279,7 +277,7 @@
     } catch (e) {
       window.ConsolePanel.log(
         "error",
-        `Failed to assemble plasmid: ${e.message}`,
+        `Failed to assemble plasmid: ${window.Messages.clean(e)}`,
         "construct",
       );
     }

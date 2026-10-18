@@ -71,7 +71,7 @@
     for (const c of candidates) {
       const tr = document.createElement("tr");
       tr.className = "candidate-row";
-      tr.title = "Click to view this candidate in 3D";
+      tr.title = "Click to see this candidate's structure";
       const checked = window.AppState.selectedCandidateIds.includes(c.id)
         ? "checked"
         : "";
@@ -121,10 +121,10 @@
       $("candidate-viewer-title").textContent = candidate.id;
       status.textContent = "Structure loaded.";
     } catch (e) {
-      status.textContent = `Failed to load structure: ${e.message}`;
+      status.textContent = `Couldn't load the structure: ${window.Messages.clean(e)}`;
       window.ConsolePanel.log(
         "error",
-        `3D candidate viewer failed: ${e.message}`,
+        `3D candidate viewer failed: ${window.Messages.clean(e)}`,
         "screening",
       );
     }
@@ -212,8 +212,7 @@
     const sel = window.AppState.selectedCandidateIds;
     $("selected-candidates-summary").textContent = sel.length
       ? sel.join(", ")
-      : "No candidates selected yet.";
-    $("btn-codon-optimize").disabled = sel.length === 0;
+      : `No candidates selected yet. Choose up to ${MAX_SELECTED} in the Screening table.`;
   }
 
   function wireFilters() {
@@ -240,7 +239,7 @@
       renderTable();
       window.ConsolePanel.log(
         "warn",
-        "No RF2 output in this session to re-score — refreshed the table from current data only.",
+        "There's no RF2 output in this session to score again. The table was refreshed from the data already loaded.",
         "screening",
       );
       return;
@@ -266,13 +265,13 @@
       window.TabConstruct?.refreshCandidateOptions?.();
       window.ConsolePanel.log(
         "ok",
-        `Re-scored ${window.AppState.candidates.length} candidates.`,
+        `Scored ${window.AppState.candidates.length} candidates again.`,
         "screening",
       );
     } catch (e) {
       window.ConsolePanel.log(
         "error",
-        `Re-score failed: ${e.message}`,
+        `Scoring failed: ${window.Messages.clean(e)}`,
         "screening",
       );
     } finally {
@@ -298,17 +297,10 @@
       wireFilters();
       wireImport();
       $("btn-rescore").addEventListener("click", rescore);
-      $("btn-goto-construct").addEventListener("click", () => {
-        if (!window.AppState.selectedCandidateIds.length) {
-          window.ConsolePanel.log(
-            "warn",
-            "Select at least one candidate before continuing to Construct.",
-            "screening",
-          );
-          return;
-        }
-        window.App.switchTab("construct");
-      });
+      // The button is gated until a candidate is selected (see gates.js).
+      $("btn-goto-construct").addEventListener("click", () =>
+        window.App.switchTab("construct"),
+      );
     },
     refresh() {
       renderTable();
