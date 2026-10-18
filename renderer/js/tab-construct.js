@@ -45,7 +45,7 @@
         const div = document.createElement("div");
         div.className = "card";
         div.innerHTML = `
-          <div class="section-label">${id} — method: ${result.method}</div>
+          <div class="section-label">${id} - method: ${result.method}</div>
           <div class="sequence-view">${result.sequence_dna}</div>
           <div class="anchor-meta">CAI: ${result.cai?.toFixed(3)} &nbsp;|&nbsp; GC%: ${result.gc_content?.toFixed(1)}%</div>
         `;
@@ -110,8 +110,8 @@
       )
       .join("  +  ");
     $("anchor-sequence-meta").textContent =
-      `${anchor.label} — ${anchor.sequence.length} residues` +
-      (breakdown ? ` — ${breakdown}` : "") +
+      `${anchor.label} - ${anchor.sequence.length} residues` +
+      (breakdown ? ` - ${breakdown}` : "") +
       `${anchor.fromCache ? " (cache)" : " (live)"}`;
     $("anchor-sequence-view").textContent = anchor.sequence;
     syncPelbAvailability();
@@ -290,7 +290,7 @@
       .map(
         (c) => `
           <div class="card">
-            <div class="section-label">${c.id} — method: ${c.codonMethod || "-"}</div>
+            <div class="section-label">${c.id} - method: ${c.codonMethod || "-"}</div>
             <div class="sequence-view">${c.dna}</div>
             <div class="anchor-meta">CAI: ${c.cai?.toFixed(3) ?? "-"} &nbsp;|&nbsp; GC%: ${c.gcContent?.toFixed(1) ?? "-"}%</div>
           </div>`,

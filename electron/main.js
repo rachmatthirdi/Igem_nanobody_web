@@ -587,7 +587,7 @@ function pullDockerImageWithProgress(imageRef, stage) {
                 percent,
                 "running",
                 `Pulling image: ${percent.toFixed(0)}% (${formatMB(cur)}MB/${formatMB(tot)}MB)` +
-                  (isFinite(eta) ? ` — ${formatEta(eta)} remaining` : ""),
+                  (isFinite(eta) ? ` - ${formatEta(eta)} remaining` : ""),
               );
             } else if (msg.status) {
               sendLog(

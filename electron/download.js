@@ -136,7 +136,7 @@ function downloadFileWithProgress({
             onProgress(
               percent,
               `Downloading ${label}: ${percent.toFixed(0)}% (${formatMB(received)}MB/${formatMB(total)}MB)` +
-                (isFinite(eta) ? ` — ${formatEta(eta)} remaining` : ""),
+                (isFinite(eta) ? ` - ${formatEta(eta)} remaining` : ""),
             );
           });
           res.on("error", fail);

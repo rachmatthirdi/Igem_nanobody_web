@@ -43,7 +43,7 @@
         : gpuAvailable
           ? "GPU"
           : "CPU (GPU not detected)";
-    el.textContent = `Phase 5 time estimate: ${formatDuration(totalSec)} (${modeLabel}) — RFdiffusion ${formatDuration(rfdiffusionSec)}, ProteinMPNN ${formatDuration(proteinmpnnSec)}, RF2 ${formatDuration(rf2Sec)}. Rough estimate, depends on target/scaffold size.`;
+    el.textContent = `Phase 5 time estimate: ${formatDuration(totalSec)} (${modeLabel}) - RFdiffusion ${formatDuration(rfdiffusionSec)}, ProteinMPNN ${formatDuration(proteinmpnnSec)}, RF2 ${formatDuration(rf2Sec)}. Rough estimate, depends on target/scaffold size.`;
   }
 
   function wireSliders() {
