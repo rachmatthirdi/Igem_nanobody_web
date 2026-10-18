@@ -71,18 +71,18 @@ npm start
 ```
 
 `npm start` should open the app window. Try the **Target** tab first (e.g.
-the `5M13` quick example) — it needs nothing beyond what you just
+the `1ZVH` quick example) — it needs nothing beyond what you just
 installed.
 
 ## 2. Get the tools image
 
 On first launch, the app detects whether Docker is available and shows an
-**"Install external tools"** dialog with a **Download tools image**
+**"Install the design tools"** card with a **Download tools image**
 button — no terminal required. It pulls the pre-built image from Docker
 Hub (`rachmatthirdi/igem_brawijaya`), streaming progress (with a real
 byte-level percentage and time estimate) into the Live Console. If Docker
-isn't found, the dialog links to Docker's install page instead; "Skip for
-now" leaves the Target tab usable in the meantime.
+isn't found, the dialog links to Docker's install page instead; "Later"
+leaves the Target tab usable in the meantime.
 
 You can re-run this any time from Settings (⚙️) → **Download tools
 image**.
@@ -150,8 +150,10 @@ nothing to configure.
 
 ## 3. Verify it worked
 
-- **System Monitor** sidebar should show "Docker tools: ✓
-  rachmatthirdi/igem_brawijaya" once the download finishes.
+- The **Install the design tools** card disappears once the download
+  finishes, and **Settings (⚙️) → Tools image** shows where Docker stored
+  the image. **Settings → Diagnostics → Test GPU access** confirms GPU
+  passthrough.
 - **Target tab**: analyze a PDB ID (e.g. `1CRN`) — FreeSASA and
   DiscoTope-3.0 progress bars should complete instead of showing a
   warning.
@@ -351,7 +353,7 @@ npm start
 
 Open **Settings** (⚙️ in the header):
 
-- **Docker image tag** — Defaults to `rachmatthirdi/igem_brawijaya:latest`;
+- **Tools image name** — Defaults to `rachmatthirdi/igem_brawijaya:latest`;
   change only if you built/tagged the image under another name.
 - **GPU detection** — Auto-detect (default), or force GPU on/off manually
   if auto-detection gets it wrong. A **Test GPU access** button in the
@@ -381,7 +383,7 @@ work/           pipeline scratch files (created automatically)
 
 ## Troubleshooting
 
-- **"The Docker image isn't built yet" error** on
+- **"The design tools aren't installed yet" message** on
   Target/Design/Screening/Construct actions — open Settings and click
   "Download tools image" (or use the install prompt shown on first
   launch).

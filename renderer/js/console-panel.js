@@ -1,16 +1,70 @@
 (function () {
   const lines = [];
 
+  let lastEntry = null;
+  let lastLine = null;
+  let unread = 0;
+
+  function footer() {
+    return document.getElementById("console-footer");
+  }
+
+  function showUnread() {
+    const badge = document.getElementById("console-unread");
+    badge.hidden = unread === 0;
+    badge.textContent = String(unread);
+  }
+
+  function setExpanded(open) {
+    footer().classList.toggle("collapsed", !open);
+    document
+      .getElementById("btn-console-toggle")
+      .setAttribute("aria-expanded", String(open));
+    if (open) {
+      unread = 0;
+      showUnread();
+    }
+  }
+
   function renderLine(entry) {
     const body = document.getElementById("console-body");
+    // The same line repeated back to back gets a counter instead of a new row.
+    if (
+      lastEntry &&
+      lastEntry.level === entry.level &&
+      lastEntry.source === entry.source &&
+      lastEntry.text === entry.text
+    ) {
+      lastEntry.count = (lastEntry.count || 1) + 1;
+      let count = lastLine.querySelector(".console-count");
+      if (!count) {
+        count = document.createElement("span");
+        count.className = "console-count";
+        lastLine.appendChild(count);
+      }
+      count.textContent = `×${lastEntry.count}`;
+      return;
+    }
+    lastEntry = entry;
     const div = document.createElement("div");
     div.className = `console-line level-${entry.level}`;
     const time = new Date(entry.ts).toLocaleTimeString("id-ID", {
       hour12: false,
     });
     div.innerHTML = `<span class="src">[${time}] [${entry.source || "-"}]</span> ${escapeHtml(entry.text)}`;
+    lastLine = div;
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
+
+    // Problems must not hide in a collapsed console: open it on an error and
+    // count warnings until it is opened.
+    if (footer().classList.contains("collapsed")) {
+      if (entry.level === "error") setExpanded(true);
+      else if (entry.level === "warn") {
+        unread += 1;
+        showUnread();
+      }
+    }
   }
 
   function escapeHtml(s) {
@@ -31,23 +85,21 @@
         .getElementById("console-header")
         .addEventListener("click", (e) => {
           if (e.target.closest(".console-header-actions")) return;
-          document
-            .getElementById("console-footer")
-            .classList.toggle("collapsed");
+          setExpanded(footer().classList.contains("collapsed"));
         });
 
       document
         .getElementById("btn-console-toggle")
         .addEventListener("click", () => {
-          document
-            .getElementById("console-footer")
-            .classList.toggle("collapsed");
+          setExpanded(footer().classList.contains("collapsed"));
         });
 
       document
         .getElementById("btn-console-clear")
         .addEventListener("click", () => {
           lines.length = 0;
+          lastEntry = null;
+          lastLine = null;
           document.getElementById("console-body").innerHTML = "";
         });
 
