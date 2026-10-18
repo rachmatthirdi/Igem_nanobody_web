@@ -179,8 +179,8 @@ h3 {
   color: var(--accent-text);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
-/* GPU info is secondary to the pipeline: neutral in every state. The 🟢/🔴
-   in its text still carries the status. */
+/* GPU info is secondary to the pipeline: neutral in every state. Its text
+   and the badge colour carry the status. */
 #gpu-badge {
   cursor: pointer;
   background: transparent;
@@ -1180,7 +1180,7 @@ input[type="range"] {
   background: var(--muted);
   color: var(--text);
 }
-/* ▲ means "expand" while collapsed; point down ("collapse") when open. */
+/* The chevron points up ("expand") while collapsed; down ("collapse") when open. */
 #console-footer:not(.collapsed) #btn-console-toggle {
   transform: rotate(180deg);
 }
@@ -1460,4 +1460,272 @@ input[type="range"] {
   .chart-row {
     grid-template-columns: 110px 1fr 70px;
   }
+}
+
+/* Lucide icons (replaced from <i data-lucide> by js/icons.js). */
+.lucide {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  vertical-align: -0.125em;
+}
+.btn .lucide,
+.icon-btn .lucide,
+.badge .lucide,
+.tab-btn .lucide,
+.pipeline-stage-header .lucide,
+.card h2 .lucide,
+.modal-content h2 .lucide {
+  width: 1.15em;
+  height: 1.15em;
+}
+.icon-btn .lucide {
+  width: 16px;
+  height: 16px;
+}
+.icon-btn-small .lucide,
+.btn-icon .lucide,
+.hotspot-chip .lucide {
+  width: 13px;
+  height: 13px;
+}
+.brand-icon .lucide {
+  width: 20px;
+  height: 20px;
+}
+.welcome-content h2 .lucide {
+  width: 1.1em;
+  height: 1.1em;
+}
+.status-pass .lucide,
+.status-fail .lucide {
+  margin-right: 2px;
+}
+
+/* =====================================================================
+   Notices, button gates, glossary tooltips, console additions
+   ===================================================================== */
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- Inline notices ---------------- */
+.notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.notice > .lucide {
+  width: 18px;
+  height: 18px;
+}
+.notice-text {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 70ch;
+}
+.notice-title {
+  font-weight: 600;
+}
+.notice-body {
+  color: var(--text-dim);
+}
+.notice-info {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.notice-info > .lucide {
+  color: var(--accent-text);
+}
+.notice-warn {
+  background: var(--warn-soft);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.notice-warn > .lucide {
+  color: var(--warn);
+}
+.notice-error {
+  background: var(--error-soft);
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+}
+.notice-error > .lucide {
+  color: var(--error-text);
+}
+.notice-ok {
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+.notice-ok > .lucide {
+  color: var(--ok);
+}
+.tools-host:empty {
+  display: none;
+}
+#pdb-notice:not(:empty) {
+  margin-top: 10px;
+}
+#design-notice:not(:empty) {
+  margin-top: 12px;
+}
+
+/* ---------------- Gated buttons ---------------- */
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn[aria-disabled="true"]:hover {
+  background: var(--bg-elev);
+}
+.btn-primary[aria-disabled="true"]:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.btn-secondary[aria-disabled="true"]:hover {
+  background: var(--muted);
+}
+.gate-reason {
+  align-self: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-radius: 6px;
+}
+.gate-reason::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.gate-reason.flash {
+  animation: gate-flash 0.9s ease;
+}
+@keyframes gate-flash {
+  30% {
+    background: color-mix(in srgb, var(--warn) 40%, transparent);
+  }
+}
+
+/* ---------------- Glossary tooltips ---------------- */
+.term:not(.term-only) {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.term-only {
+  display: none;
+}
+.term-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  vertical-align: middle;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-dim);
+  cursor: help;
+}
+.term-btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.term-btn .lucide {
+  width: 14px;
+  height: 14px;
+}
+.term-pop {
+  position: fixed;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 320px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--popover-foreground);
+  background: var(--popover);
+  border: 1px solid var(--text-dim);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.term-pop strong {
+  font-weight: 600;
+}
+.term-pop-detail {
+  color: var(--text-dim);
+}
+
+/* ---------------- Labels and slider rows ---------------- */
+.form-label {
+  min-width: 160px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+}
+.label-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.label-row label {
+  margin-bottom: 0;
+}
+.label-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 160px;
+}
+.label-wrap label {
+  min-width: 0;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.slider-row .label-wrap {
+  flex: 0 0 290px;
+}
+.slider-row label {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+}
+.slider-row input[type="range"] {
+  flex: 1 1 auto;
+  max-width: 420px;
+  margin-left: 8px;
+}
+.project-when {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* ---------------- Console additions ---------------- */
+.console-unread {
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111;
+  background: var(--warn);
+  border-radius: 999px;
+}
+.console-count {
+  margin-left: 6px;
+  color: var(--text-dim);
 }

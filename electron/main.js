@@ -519,7 +519,7 @@ function downloadFileWithProgress(url, destPath, stage, label) {
 }
 
 const DOCKER_NOT_READY_MSG =
-  'The Docker image isn\'t built yet. Open Settings and click "Build Docker image" (or use the install prompt on launch).';
+  'The design tools aren\'t installed yet. Download the tools image from Settings, or use the setup card at the top of the window.';
 
 function requireDocker() {
   const settings = getSettings();

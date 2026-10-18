@@ -28,6 +28,7 @@
       window.TabScreening.refresh();
     if (name === "construct" && window.TabConstruct?.onActivate)
       window.TabConstruct.onActivate();
+    tick(true);
   }
 
   function wireTabs() {
@@ -73,11 +74,11 @@
       const status = await window.api.checkGpu();
       const badge = $("gpu-badge");
       if (status.cudaAvailable) {
-        badge.textContent = `🟢 GPU: ${status.gpuName || "detected"}`;
+        window.Icons.setLabel(badge, "cpu", `GPU: ${status.gpuName || "detected"}`);
         badge.className = "badge badge-ok";
         badge.title = "";
       } else {
-        badge.textContent = "🔴 GPU: not detected";
+        window.Icons.setLabel(badge, "cpu", "GPU: not detected");
         badge.className = "badge badge-error";
         badge.title =
           "Have an NVIDIA GPU? Install nvidia-container-toolkit and " +
@@ -90,12 +91,13 @@
         ? `${status.vramTotalGb} GB`
         : "-";
     } catch (e) {
-      $("gpu-badge").textContent = "🔴 GPU: error";
+      window.Icons.setLabel($("gpu-badge"), "cpu", "GPU: error");
     }
   }
 
   async function refreshMonitorSettings() {
     refreshDockerStorageMonitor();
+    refreshInstallBanner();
   }
 
   // Shown in Settings > Docker tools regardless of install status (unlike the
@@ -114,14 +116,19 @@
   let installBannerDismissed = false;
 
   async function refreshInstallBanner() {
-    if (installBannerDismissed) return;
     const settings = await window.api.getSettings();
-    if (settings.installMode === "docker") {
+    App.toolsReady = settings.installMode === "docker";
+    if (App.toolsReady) {
       $("install-banner").style.display = "none";
+      tick(true);
       return;
     }
 
     const docker = await window.api.checkDocker();
+    App.dockerAvailable = !!docker.available;
+    tick(true);
+    if (installBannerDismissed) return;
+
     $("install-banner").style.display = "";
     $("install-no-docker").style.display = docker.available ? "none" : "";
     $("install-ready").style.display = docker.available ? "" : "none";
@@ -158,15 +165,14 @@
       try {
         await window.api.pullDockerImage();
         window.ConsolePanel.log("ok", "Tools image downloaded.", "install");
-        $("install-banner").style.display = "none";
         refreshMonitorSettings();
       } catch (e) {
         const cancelled = e.message === "Cancelled by user.";
         window.ConsolePanel.log(
           cancelled ? "warn" : "error",
           cancelled
-            ? "Docker pull cancelled."
-            : `Docker pull failed: ${e.message}`,
+            ? "Download cancelled."
+            : `Tools image download failed: ${window.Messages.clean(e)}`,
           "install",
         );
       } finally {
@@ -192,15 +198,14 @@
         await window.api.runDockerBuild();
         window.ConsolePanel.log(
           "ok",
-          "Docker image build complete.",
+          "Tools image build complete.",
           "install",
         );
-        $("install-banner").style.display = "none";
         refreshMonitorSettings();
       } catch (e) {
         window.ConsolePanel.log(
           "error",
-          `Docker build failed: ${e.message}`,
+          `Tools image build failed: ${window.Messages.clean(e)}`,
           "install",
         );
       } finally {
@@ -214,7 +219,7 @@
     const s = await window.api.getSettings();
     $("set-dockerImage").value = s.dockerImage;
     $("set-gpuOverride").value = s.gpuOverride;
-    $("settings-modal").classList.remove("hidden");
+    window.A11y.openModal($("settings-modal"));
   }
 
   function wireSettingsModal() {
@@ -226,7 +231,7 @@
       field.focus();
     });
     $("btn-settings-close").addEventListener("click", () =>
-      $("settings-modal").classList.add("hidden"),
+      window.A11y.closeModal($("settings-modal")),
     );
     $("btn-test-gpu").addEventListener("click", async () => {
       const btn = $("btn-test-gpu");
@@ -238,7 +243,7 @@
         const res = await window.api.testGpuDocker();
         if (res.success) {
           const name = res.message.match(/^\|\s+\d+\s+(.+?)\s{2,}/m)?.[1];
-          status.textContent = `✓ Docker can reach your GPU${name ? `: ${name}` : ""}.`;
+          window.Icons.setLabel(status, "circle-check", `Docker can reach your GPU${name ? `: ${name}` : ""}.`);
           status.className = "status-pass";
           window.ConsolePanel.log(
             "ok",
@@ -246,8 +251,11 @@
             "gpu-check",
           );
         } else {
-          status.textContent =
-            "✗ Docker cannot reach a GPU (see Live Console).";
+          window.Icons.setLabel(
+            status,
+            "circle-x",
+            "Docker cannot reach a GPU (see Live Console).",
+          );
           status.className = "status-fail";
           window.ConsolePanel.log(
             "error",
@@ -271,14 +279,14 @@
       );
       try {
         await window.api.pullDockerImage();
-        status.textContent = "✓ Tools image ready.";
+        window.Icons.setLabel(status, "circle-check", "Tools image ready.");
         window.ConsolePanel.log("ok", "Tools image downloaded.", "install");
         refreshMonitorSettings();
       } catch (e) {
-        status.textContent = "✗ Download failed.";
+        window.Icons.setLabel(status, "circle-x", "Download failed.");
         window.ConsolePanel.log(
           "error",
-          `Docker pull failed: ${e.message}`,
+          `Tools image download failed: ${window.Messages.clean(e)}`,
           "install",
         );
       } finally {
@@ -297,18 +305,18 @@
       );
       try {
         await window.api.runDockerBuild();
-        status.textContent = "✓ Build complete.";
+        window.Icons.setLabel(status, "circle-check", "Build complete.");
         window.ConsolePanel.log(
           "ok",
-          "Docker image build complete.",
+          "Tools image build complete.",
           "install",
         );
         refreshMonitorSettings();
       } catch (e) {
-        status.textContent = "✗ Build failed.";
+        window.Icons.setLabel(status, "circle-x", "Build failed.");
         window.ConsolePanel.log(
           "error",
-          `Docker build failed: ${e.message}`,
+          `Tools image build failed: ${window.Messages.clean(e)}`,
           "install",
         );
       } finally {
@@ -321,7 +329,7 @@
         gpuOverride: $("set-gpuOverride").value,
       };
       await window.api.saveSettings(settings);
-      $("settings-modal").classList.add("hidden");
+      window.A11y.closeModal($("settings-modal"));
       refreshMonitorSettings();
       refreshGpuStatus();
       window.ConsolePanel.log("ok", "Settings saved.", "settings");
@@ -340,44 +348,127 @@
     $("btn-load-project").addEventListener("click", async () => {
       const list = await window.api.listProjects();
       const container = $("projects-list");
-      container.innerHTML = "";
-      if (!list.length)
-        container.innerHTML =
-          '<div style="color:var(--text-dim);padding:10px">No saved projects yet.</div>';
+      container.replaceChildren();
+      if (!list.length) {
+        const empty = document.createElement("p");
+        empty.className = "section-hint";
+        empty.textContent =
+          "No saved projects yet. Use the save button in the header to keep your work.";
+        container.appendChild(empty);
+      }
       for (const p of list) {
-        const div = document.createElement("div");
-        div.className = "project-item";
-        div.innerHTML = `<span>${p.name} <span style="color:var(--text-dim);font-size:11px">(${p.savedAt ? new Date(p.savedAt).toLocaleString("en-US") : ""})</span></span>`;
-        const btnLoad = document.createElement("button");
-        btnLoad.className = "btn btn-secondary";
-        btnLoad.textContent = "Load";
-        btnLoad.addEventListener("click", async () => {
+        const row = document.createElement("div");
+        row.className = "project-item";
+        const label = document.createElement("span");
+        label.textContent = p.name;
+        if (p.savedAt) {
+          const when = document.createElement("span");
+          when.className = "project-when";
+          when.textContent = ` (${new Date(p.savedAt).toLocaleString("en-US")})`;
+          label.appendChild(when);
+        }
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "btn btn-secondary";
+        open.textContent = "Open";
+        open.addEventListener("click", async () => {
           const data = await window.api.loadProject(p.id);
           window.StateUtils.applyLoaded(data);
-          $("projects-modal").classList.add("hidden");
+          window.A11y.closeModal($("projects-modal"));
           window.TabScreening?.refresh();
           window.TabConstruct?.refreshCandidateOptions?.();
+          tick(true);
           window.ConsolePanel.log(
             "ok",
-            `Project "${p.name}" loaded.`,
+            `Project "${p.name}" opened.`,
             "project",
           );
         });
-        div.appendChild(btnLoad);
-        container.appendChild(div);
+        row.append(label, open);
+        container.appendChild(row);
       }
-      $("projects-modal").classList.remove("hidden");
+      window.A11y.openModal($("projects-modal"));
     });
 
     $("btn-projects-close").addEventListener("click", () =>
-      $("projects-modal").classList.add("hidden"),
+      window.A11y.closeModal($("projects-modal")),
     );
   }
 
+  // ---------------- Tools notices + button gates ----------------
+  let lastSignature = "";
+  let lastToolsKey = null;
+
+  function refreshToolsNotices() {
+    document.querySelectorAll("[data-tools-notice]").forEach((host) => {
+      const state = App.toolsReady
+        ? "ready"
+        : App.dockerAvailable === false
+          ? "no-docker"
+          : "missing";
+      if (host.dataset.state === state) return;
+      host.dataset.state = state;
+      if (state === "ready") {
+        window.Notice.clear(host);
+      } else if (state === "no-docker") {
+        window.Notice.render(host, {
+          tone: "warn",
+          title: "Docker isn't running",
+          body: "The design tools run inside Docker. Install or start Docker, then reopen this app.",
+        });
+      } else {
+        window.Notice.render(host, {
+          tone: "warn",
+          title: "The design tools aren't installed yet",
+          body: "This step needs them. The tools image is a one-time download of about 19 GB.",
+          action: { label: "Download tools image", id: "download-tools" },
+        });
+      }
+    });
+  }
+
+  // Cheap enough to run on a timer: it only touches the DOM when something it
+  // shows has changed.
+  function tick(force) {
+    const s = window.AppState;
+    const sig = JSON.stringify([
+      s.hotspotResidues.length,
+      !!s.scaffold,
+      s.candidates.length,
+      s.candidates.filter((c) => c.dna).length,
+      s.selectedCandidateIds.length,
+      !!s.anchor,
+      !!s.constructDna,
+      App.toolsReady,
+      App.dockerAvailable,
+    ]);
+    if (!force && sig === lastSignature) return;
+    lastSignature = sig;
+    window.Gates.refresh();
+    const key = `${App.toolsReady}|${App.dockerAvailable}`;
+    if (key !== lastToolsKey) {
+      const justReady =
+        !!lastToolsKey && lastToolsKey.startsWith("false") && App.toolsReady;
+      lastToolsKey = key;
+      refreshToolsNotices();
+      // Tools finished installing while Design is open: load the scaffold now.
+      if (justReady && $("tab-design").classList.contains("active"))
+        window.TabDesign?.onActivate?.();
+    }
+  }
+
   // ---------------- Bootstrap ----------------
-  window.App = { switchTab, openSettingsModal };
+  const App = {
+    switchTab,
+    openSettingsModal,
+    tick,
+    toolsReady: false,
+    dockerAvailable: null,
+  };
+  window.App = App;
 
   document.addEventListener("DOMContentLoaded", () => {
+    window.Icons.refresh();
     window.ConsolePanel.init();
     wireTabs();
     wireProgress();
@@ -389,10 +480,13 @@
     window.TabDesign.init();
     window.TabScreening.init();
     window.TabConstruct.init();
+    window.Glossary.init();
 
     refreshGpuStatus();
     refreshMonitorSettings();
     refreshPlatformInfo();
     refreshInstallBanner();
+    tick(true);
+    setInterval(() => tick(false), 600);
   });
 })();
