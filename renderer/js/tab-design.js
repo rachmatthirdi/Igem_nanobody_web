@@ -2,7 +2,7 @@
   function $(id) {
     return document.getElementById(id);
   }
-  let cdrAuto = {}; // auto-detected {H1:{start,end,residues}, ...}, kept for the reset (↺) button
+  let cdrAuto = {}; // auto-detected {H1:{start,end,residues}, ...}, kept for the reset button
   let gpuAvailable = null; // null = unknown yet
 
   // Per-unit durations backing the Phase 5 ETA hint. CPU figures are measured
@@ -63,18 +63,26 @@
 
   async function loadScaffold() {
     if (window.AppState.scaffold) return;
+    const host = $("scaffold-notice");
+    // Without the tools image there is nothing to ask; the tools notice at the
+    // top of this step already says what to do.
+    if (!window.App.toolsReady) {
+      window.Notice.clear(host);
+      return;
+    }
     const scaffoldName = $("scaffold-select").value;
     try {
       const result = await window.api.getScaffoldSequence({ scaffoldName });
       window.AppState.scaffold = result;
       cdrAuto = JSON.parse(JSON.stringify(result.cdr || {}));
+      window.Notice.clear(host);
       renderScaffoldSequence(result);
       renderCdrRanges(result.cdr);
     } catch (e) {
-      $("scaffold-sequence").textContent = `⚠ ${e.message}`;
+      window.Notice.fromError(host, e, "Couldn't load the scaffold");
       window.ConsolePanel.log(
         "warn",
-        `Failed to load scaffold: ${e.message}`,
+        `Failed to load scaffold: ${window.Messages.clean(e)}`,
         "design",
       );
     }
@@ -212,6 +220,15 @@
   // Clears the design run without touching the Target tab's work (PDB,
   // hotspots) or the scaffold - those are inputs to a design, not part of it.
   async function cancelDesign() {
+    const hasResults =
+      pipelineRunning || window.AppState.candidates.length > 0;
+    if (
+      hasResults &&
+      !window.confirm(
+        "Start over? This clears the design results and everything after them. Your target and scaffold are kept.",
+      )
+    )
+      return;
     if (pipelineRunning) await window.api.cancelPipeline();
     const s = window.AppState;
     s.scaffoldConfig = null;
@@ -228,12 +245,12 @@
     s.constructComponents = null;
     s.plasmid = null;
     resetPipelineUi();
-    $("btn-goto-screening").disabled = true;
+    window.Notice.clear($("design-notice"));
     window.TabScreening?.refresh();
     window.TabConstruct?.refreshCandidateOptions?.();
     window.ConsolePanel.log(
       "ok",
-      "Design cancelled. Target selections and scaffold are kept - press Run to design again.",
+      "Started over. Your target and scaffold are kept. Press Run design to try again.",
       "design",
     );
   }
@@ -274,7 +291,7 @@
     ) {
       window.ConsolePanel.log(
         "error",
-        "Complete the Target tab (select hotspots) before running the AI Design Pipeline.",
+        "Pick hotspots on the Target step before running the design.",
         "design",
       );
       return;
@@ -282,7 +299,7 @@
     if (!window.AppState.scaffold) {
       window.ConsolePanel.log(
         "error",
-        "Scaffold not loaded yet. Check the RFantibody path in Settings.",
+        "The scaffold hasn't loaded yet. Check the tools image in Settings.",
         "design",
       );
       return;
@@ -296,9 +313,9 @@
     // thing allowed to reset it.
     await window.api.beginPipeline();
     pipelineRunning = true;
+    window.Notice.clear($("design-notice"));
     $("btn-run-pipeline").disabled = true;
     $("btn-stop-pipeline").disabled = false;
-    $("btn-goto-screening").disabled = true;
 
     try {
       setBadge("badge-rfdiffusion", "Running...", "badge-running");
@@ -350,7 +367,6 @@
         `${window.AppState.candidates.length} candidates ready for screening.`,
         "design",
       );
-      $("btn-goto-screening").disabled = false;
       if (window.TabScreening) window.TabScreening.refresh();
 
       // Auto-save so a finished design run survives even if the user
@@ -368,7 +384,7 @@
       } catch (e) {
         window.ConsolePanel.log(
           "warn",
-          `Auto-save failed: ${e.message}`,
+          `Auto-save failed: ${window.Messages.clean(e)}`,
           "design",
         );
       }
@@ -376,9 +392,11 @@
       const stopped = e.message === "Cancelled by user.";
       window.ConsolePanel.log(
         stopped ? "warn" : "error",
-        stopped ? "Pipeline stopped by user." : `Pipeline failed: ${e.message}`,
+        stopped ? "Run stopped." : `Design failed: ${window.Messages.clean(e)}`,
         "design",
       );
+      if (!stopped)
+        window.Notice.fromError($("design-notice"), e, "The design run failed");
       PIPELINE_BADGES.forEach((id) => {
         if ($(id).textContent.includes("Running"))
           setBadge(
@@ -479,7 +497,7 @@
           $("btn-stop-pipeline").disabled = true;
           window.ConsolePanel.log(
             "warn",
-            "Nothing was running to stop.",
+            "Nothing is running right now.",
             "design",
           );
         } else {
@@ -487,7 +505,7 @@
             "warn",
             res.wasRunning
               ? "Stopping the current stage..."
-              : "Stop requested - the pipeline will halt before the next stage starts.",
+              : "Stop requested. The run will halt before the next stage starts.",
             "design",
           );
         }

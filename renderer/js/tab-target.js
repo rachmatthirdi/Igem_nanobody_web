@@ -75,14 +75,17 @@
 
   async function runAnalysis() {
     const pdbId = $("pdb-id-input").value.trim().toUpperCase();
+    const notice = $("pdb-notice");
     if (!/^[A-Z0-9]{4}$/.test(pdbId)) {
-      window.ConsolePanel.log(
-        "error",
-        "PDB ID must be 4 alphanumeric characters.",
-        "target",
-      );
+      window.Notice.render(notice, {
+        tone: "error",
+        title: "Check the PDB ID",
+        body: "Use 4 letters or digits, for example 1ZVH.",
+      });
+      $("pdb-id-input").focus();
       return;
     }
+    window.Notice.clear(notice);
     $("analysis-progress-card").style.display = "";
     $("hotspot-map-card").style.display = "none";
     window.StateUtils.reset();
@@ -94,9 +97,20 @@
     } catch (e) {
       window.ConsolePanel.log(
         "error",
-        `Failed to download ${pdbId}: ${e.message}`,
+        `Failed to download ${pdbId}: ${window.Messages.clean(e)}`,
         "target",
       );
+      $("analysis-progress-card").style.display = "none";
+      const m = window.Messages.explain(e);
+      const generic = m.title === "Something went wrong";
+      window.Notice.render(notice, {
+        tone: m.tone,
+        title: generic ? `Couldn't download ${pdbId}` : m.title,
+        body: generic
+          ? "Check the ID and your internet connection, then try again."
+          : m.body,
+        action: m.action,
+      });
       return;
     }
     window.AppState.pdbPath = dl.pdbPath;
@@ -123,14 +137,14 @@
     if (disco.status === "rejected") {
       window.ConsolePanel.log(
         "warn",
-        `DiscoTope-3.0 did not run: ${disco.reason.message}`,
+        `DiscoTope-3.0 did not run: ${window.Messages.clean(disco.reason)}`,
         "target",
       );
     }
     if (sasa.status === "rejected") {
       window.ConsolePanel.log(
         "warn",
-        `FreeSASA did not run: ${sasa.reason.message}`,
+        `FreeSASA did not run: ${window.Messages.clean(sasa.reason)}`,
         "target",
       );
     }
@@ -152,7 +166,7 @@
     } catch (e) {
       window.ConsolePanel.log(
         "warn",
-        `Failed to load 3D structure: ${e.message}`,
+        `Failed to load 3D structure: ${window.Messages.clean(e)}`,
         "target",
       );
     }
@@ -387,7 +401,7 @@
     for (const resNum of window.AppState.hotspotResidues) {
       const chip = document.createElement("span");
       chip.className = "hotspot-chip";
-      chip.textContent = `${resLabel(resNum)} ✕`;
+      window.Icons.setLabel(chip, "x", resLabel(resNum), { iconAfter: true });
       chip.style.cursor = "pointer";
       chip.addEventListener("click", () => toggleHotspot(resNum));
       container.appendChild(chip);
