@@ -115,6 +115,39 @@
   // ---------------- Install banner (Docker tools image) ----------------
   let installBannerDismissed = false;
 
+  // What to tell the user for each reason check-docker can return. "Not
+  // detected" used to cover all of them, which sent people who had Docker
+  // installed but not started off to reinstall it.
+  function dockerProblem(reason) {
+    switch (reason) {
+      case "not-installed":
+        return {
+          title: "Docker isn't installed",
+          lead: "Docker wasn't detected on this machine.",
+          fix: "Install Docker, then reopen this app.",
+          canInstall: true,
+        };
+      case "not-running":
+        return {
+          title: "Docker isn't running",
+          lead: "Docker is installed, but it isn't running.",
+          fix: "Start Docker Desktop (or OrbStack / Colima), wait until it reports that it is running, then reopen this app.",
+        };
+      case "permission":
+        return {
+          title: "Docker isn't reachable",
+          lead: "Docker is installed, but this user can't reach it.",
+          fix: "On Linux, add your user to the docker group and log out and back in, then reopen this app.",
+        };
+      default:
+        return {
+          title: "Docker isn't responding",
+          lead: "Docker didn't respond.",
+          fix: "Make sure Docker is installed and started, then reopen this app.",
+        };
+    }
+  }
+
   async function refreshInstallBanner() {
     const settings = await window.api.getSettings();
     App.toolsReady = settings.installMode === "docker";
@@ -126,13 +159,20 @@
 
     const docker = await window.api.checkDocker();
     App.dockerAvailable = !!docker.available;
+    App.dockerReason = docker.reason || null;
     tick(true);
     if (installBannerDismissed) return;
 
     $("install-banner").style.display = "";
     $("install-no-docker").style.display = docker.available ? "none" : "";
     $("install-ready").style.display = docker.available ? "" : "none";
-    if (!docker.available) return;
+    if (!docker.available) {
+      const problem = dockerProblem(docker.reason);
+      $("install-docker-lead").textContent = problem.lead;
+      $("install-docker-fix").textContent = problem.fix;
+      $("install-docker-link").style.display = problem.canInstall ? "" : "none";
+      return;
+    }
 
     const info = await window.api.getDockerStorageInfo();
     $("install-storage-path").textContent =
@@ -416,10 +456,11 @@
       if (state === "ready") {
         window.Notice.clear(host);
       } else if (state === "no-docker") {
+        const problem = dockerProblem(App.dockerReason);
         window.Notice.render(host, {
           tone: "warn",
-          title: "Docker isn't running",
-          body: "The design tools run inside Docker. Install or start Docker, then reopen this app.",
+          title: problem.title,
+          body: `The design tools run inside Docker. ${problem.fix}`,
         });
       } else {
         window.Notice.render(host, {
@@ -450,7 +491,7 @@
     if (!force && sig === lastSignature) return;
     lastSignature = sig;
     window.Gates.refresh();
-    const key = `${App.toolsReady}|${App.dockerAvailable}`;
+    const key = `${App.toolsReady}|${App.dockerAvailable}|${App.dockerReason}`;
     if (key !== lastToolsKey) {
       const justReady =
         !!lastToolsKey && lastToolsKey.startsWith("false") && App.toolsReady;
@@ -469,6 +510,7 @@
     tick,
     toolsReady: false,
     dockerAvailable: null,
+    dockerReason: null,
   };
   window.App = App;
 
