@@ -1,9 +1,9 @@
 {
   "name": "nanobody-designer",
   "version": "0.1.0",
-  "description": "Nanobody design GUI: Target -> Design -> Screening -> Construct",
+  "description": "CATCHERs: Software, a nanobody design GUI: Target -> Design -> Screening -> Construct",
   "main": "electron/main.js",
-  "author": "Nanobody Designer",
+  "author": "CATCHERs",
   "license": "MIT",
   "private": true,
   "scripts": {
