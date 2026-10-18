@@ -1475,7 +1475,15 @@ ipcMain.handle("run-rfdiffusion", async (_evt, params) => {
   );
 
   const targetText = fs.readFileSync(targetPdbPath, "utf8");
-  const targetT = renameChain(targetText, "A", "T");
+  // RFantibody's HLT parser reads every REMARK line as a possible CDR label
+  // (columns 28-29 equal to H1..L3), so the original PDB header can look like
+  // a designed loop: "REMARK 500 ARG A 107 NH1 - CZ - NH2 ..." has "H1" there
+  // and fails the "target should not contain any designed loops" check. A
+  // target has no labels to carry, so drop the header remarks.
+  const targetT = renameChain(targetText, "A", "T")
+    .split("\n")
+    .filter((line) => !line.startsWith("REMARK"))
+    .join("\n");
   const targetTPath = path.join(DIRS.work, `${pdbId}_target_chainT.pdb`);
   fs.writeFileSync(targetTPath, targetT, "utf8");
 
