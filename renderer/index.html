@@ -71,13 +71,14 @@
 
             <div id="install-no-docker" style="display: none">
               <p class="section-hint">
-                Docker wasn't detected on this machine. FreeSASA,
-                DiscoTope-3.0, CodonTransformer/PRODIGY, and the AI Design
-                pipeline (RFdiffusion/ProteinMPNN/RF2) all require it - the
-                Target tab works without it in the meantime.
-                <a href="https://docs.docker.com/get-docker/" target="_blank" rel="noopener"
-                  >Install Docker</a
-                >, then reopen this app.
+                <span id="install-docker-lead">Docker wasn't detected on this machine.</span>
+                FreeSASA, DiscoTope-3.0, CodonTransformer/PRODIGY, and the AI
+                Design pipeline (RFdiffusion/ProteinMPNN/RF2) all require it -
+                the Target tab works without it in the meantime.
+                <span id="install-docker-fix">Install Docker, then reopen this app.</span>
+                <a id="install-docker-link" href="https://docs.docker.com/get-docker/" target="_blank" rel="noopener"
+                  >Get Docker</a
+                >
               </p>
               <div class="tab-footer-actions">
                 <button id="btn-install-dismiss-nodocker" class="btn btn-ghost">
