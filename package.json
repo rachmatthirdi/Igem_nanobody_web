@@ -4,7 +4,7 @@
   "description": "CATCHERs Generator, a nanobody design GUI: Target -> Design -> Screening -> Construct",
   "main": "electron/main.js",
   "author": "CATCHERs",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",

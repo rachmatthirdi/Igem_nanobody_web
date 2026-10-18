@@ -1,6 +1,6 @@
 # Third-party components
 
-CATCHERs Generator is released under the [Apache License 2.0](LICENSE). That
+CATCHERs Generator is released under the [MIT License](LICENSE). That
 license covers the source code in this repository only. The tools below are
 separate works under their own licenses. This file is a summary for readers and
 is not legal advice. Each tool keeps its own license file, and the originals
@@ -37,7 +37,7 @@ from the official source on the first Design run.
 ## Non-commercial restriction
 
 DiscoTope-3.0 and the RF2 weights are licensed for **non-commercial use only**.
-The Apache-2.0 license on this application does not remove those limits.
+The MIT license on this application does not remove those limits.
 Academic and competition use is covered. Commercial use of the full pipeline
 would need permission from the authors of those components.
 

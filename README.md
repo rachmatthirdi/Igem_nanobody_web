@@ -285,7 +285,7 @@ main process, the interface, Docker orchestration or the scientific tools.
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT License. See [LICENSE](LICENSE).
 
 The scientific tools in the Docker image are separate works under their own
 licenses, and **DiscoTope-3.0 and the RF2 weights are licensed for
