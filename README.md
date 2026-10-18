@@ -1,67 +1,48 @@
 # CATCHERs: Software
 
-A desktop GUI (Electron) for a nanobody design pipeline: **Target → Design →
-Screening → Construct**. It orchestrates RCSB PDB, InterPro, FreeSASA,
-DiscoTope-3.0, RFantibody (RFdiffusion/ProteinMPNN/RF2), PRODIGY,
-CodonTransformer, and UniProt behind a single UI, and writes a
-ready-to-order plasmid FASTA at the end.
+CATCHERs: Software is the desktop app (Electron) from **CATCHERs**
+(Computationally Assisted Target-specific Cell-based Host Engineered
+Recognitions), an iGEM project. It takes you from a target protein to a
+synthesis-ready nanobody insert, in four steps:
 
-This guide walks through installing everything from a clean machine.
+Target → Design → Screening → Construct
 
-## What you get without any extra setup
+It puts RCSB PDB, InterPro, FreeSASA, DiscoTope-3.0, RFantibody
+(RFdiffusion, ProteinMPNN, RF2), PRODIGY, CodonTransformer and UniProt behind
+one interface, with a live console that shows exactly what each tool is doing.
 
-```bash
-npm install
-npm start
-```
+- [What each step does](#what-each-step-does)
+- [Quick start](#quick-start)
+- [Requirements](#requirements)
+- [Install the tools image](#install-the-tools-image)
+- [Verify the install](#verify-the-install)
+- [Settings](#settings)
+- [Project structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+- [Known issues](#known-issues)
+- [Appendix: install without Docker](#appendix-install-without-docker)
 
-- **Target** tab — download a PDB, run InterPro, hotspot/epitope map, live
-  3D viewer (Mol\*).
-- **Screening**, **Construct** tabs (browsing/UI only until Docker is set
-  up) — filtering, composite score chart, manual metrics import.
-- Save/Load project, Live Console, Settings.
+## What each step does
 
-**FreeSASA**, **DiscoTope-3.0** (Target tab), **CodonTransformer/PRODIGY**
-(Screening/Construct), and the whole **AI Design pipeline** — RFdiffusion /
-ProteinMPNN / RF2 (Design tab) — require Docker (see below). There's no
-native/conda fallback: Docker is what pins every one of these tools to
-exact, tested versions instead of letting each machine's own conda/pip
-solve drift out from under you.
+<!-- markdownlint-disable MD013 -->
+| Step | What you do | What runs | Needs Docker |
+| --- | --- | --- | --- |
+| **Target** | Enter a PDB ID (e.g. `1ZVH`), inspect the structure, and pick hotspot residues on the SASA / DiscoTope tracks or in the 3D viewer | RCSB download, InterPro domains, FreeSASA, DiscoTope-3.0, Mol\* viewer | Only for FreeSASA and DiscoTope |
+| **Design** | Choose the scaffold, CDR loop lengths (H1/H2/H3), number of backbones and sequences per backbone, then run | RFdiffusion → ProteinMPNN → RF2, then scoring (pLDDT, PAE, CDR/H3 RMSD, PRODIGY ΔG) | Yes |
+| **Screening** | Filter and rank candidates by composite score, inspect each structure, select up to 3 | Scoring chart, filters, manual metrics import (`.json`, `.csv`, `.sc`) | No (re-scoring needs Docker) |
+| **Construct** | Optimize codons, pick a display anchor (Lpp-OmpA or intimin Int660), choose a vector, build the insert | CodonTransformer (E. coli table fallback), UniProt anchor fetch, restriction-site screening | Yes |
+<!-- markdownlint-enable MD013 -->
 
-RF2's weights specifically aren't in the Docker image (its license doesn't
-allow redistributing them - see [Settings](#settings)); the app downloads
-that one file itself (~281 MB) the first time you run the Design pipeline,
-straight from the official source. Everything else needed for the AI
-Design pipeline is already in the image.
+The final output is a FASTA in `output/`: an **NdeI → [PelB] → anchor →
+GGGGS×3 linker → nanobody → His-tag → stop → XhoI** insert, labeled for
+pET-28a(+) or pET-22b(+). It contains the insert only, not the vector
+backbone. Internal NdeI/XhoI sites are removed by synonymous codon
+substitution, and any that can't be removed are reported.
 
-## Prerequisites
+Projects can be saved and reopened from the header, and the design results
+are auto-saved when a run finishes.
 
-- **Node.js** — v18 or newer (tested with v24). `npm` comes with it.
-- **git** — to clone this repo.
-- **Docker** — Required for FreeSASA, DiscoTope-3.0,
-  CodonTransformer/PRODIGY, and RFdiffusion/ProteinMPNN/RF2.
-  [Install Docker](https://docs.docker.com/get-docker/) (Docker Desktop on
-  macOS/Windows, Docker Engine on Linux) with the daemon running.
-- **Internet access** — `npm install` downloads Electron's ~200 MB binary;
-  getting the tools image downloads ~19 GB from Docker Hub (one-time,
-  cached locally after that), plus a ~281 MB RF2 weight file on first
-  Design pipeline run.
-- **NVIDIA GPU + CUDA** — optional but strongly recommended, plus
-  [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-  on Linux for GPU passthrough into the container. RFdiffusion,
-  ProteinMPNN, RF2, and DiscoTope-3.0 all auto-fall back to CPU when no
-  GPU is detected — the app runs and produces correct output either way —
-  but RFdiffusion/RF2 specifically go from **seconds** on a GPU to
-  **minutes** on CPU. The app only passes `--gpus all` to Docker when it
-  detects a GPU, so CPU-only machines need no extra setup. Docker Desktop
-  on macOS/Windows has no NVIDIA passthrough, so RFdiffusion/RF2 run
-  CPU-only there.
-
-You do **not** need Python or conda installed on your system directly —
-everything runs inside the one Docker image, downloaded once from Docker
-Hub (or built locally from `docker/Dockerfile`, if you prefer).
-
-## 1. Clone and install the app
+## Quick start
 
 ```bash
 git clone https://github.com/rachmatthirdi/igem_nanobody.git
@@ -70,117 +51,213 @@ npm install
 npm start
 ```
 
-`npm start` should open the app window. Try the **Target** tab first (e.g.
-the `1ZVH` quick example) — it needs nothing beyond what you just
+`npm install` downloads Electron (~200 MB). When the window opens, try the
+**Target** tab with one of the quick examples (e.g. `1ZVH`): PDB download,
+InterPro domains, the hotspot map and the 3D viewer work with nothing else
 installed.
 
-## 2. Get the tools image
+FreeSASA, DiscoTope-3.0, the whole Design pipeline, scoring and codon
+optimization run inside Docker. On first launch the app offers a one-click
+download (see [Install the tools image](#install-the-tools-image)).
 
-On first launch, the app detects whether Docker is available and shows an
-**"Install the design tools"** card with a **Download tools image**
-button — no terminal required. It pulls the pre-built image from Docker
-Hub (`rachmatthirdi/igem_brawijaya`), streaming progress (with a real
-byte-level percentage and time estimate) into the Live Console. If Docker
-isn't found, the dialog links to Docker's install page instead; "Later"
-leaves the Target tab usable in the meantime.
+## Requirements
 
-You can re-run this any time from Settings (⚙️) → **Download tools
-image**.
+<!-- markdownlint-disable MD013 -->
+| Requirement | Notes |
+| --- | --- |
+| **Node.js** 18 or newer | Tested with v24. `npm` is included. |
+| **git** | To clone this repo. |
+| **Docker** | Docker Desktop (macOS/Windows) or Docker Engine (Linux), with the daemon running. Needed for everything except the basic Target tab features. |
+| **Internet** | One-time downloads: Electron (~200 MB), the tools image (~19 GB compressed), and the RF2 weights (~281 MB, on the first Design run). |
+| **Disk space** | The tools image is ~19 GB to download but about **53 GB on disk** once extracted. |
+| **NVIDIA GPU** (optional) | Strongly recommended for Design. See below. |
+<!-- markdownlint-enable MD013 -->
 
-Equivalent from a terminal:
+You do **not** need Python or conda on your machine. They live inside the
+Docker image.
+
+### GPU
+
+RFdiffusion, ProteinMPNN, RF2 and DiscoTope-3.0 all fall back to CPU when no
+GPU is detected, and produce correct output either way. The difference is
+speed: RFdiffusion and RF2 take **seconds** per unit on a GPU and
+**minutes** on CPU. The Design tab shows an estimate for your current settings.
+
+- **Linux:** install the
+  [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+  so Docker can see the GPU.
+- **Windows:** Docker Desktop with the WSL2 backend can pass an NVIDIA GPU
+  through. This was verified on an RTX 3050 Laptop GPU (4 GB).
+- **macOS:** there is no NVIDIA passthrough, so everything runs on CPU.
+
+The app only passes `--gpus all` to Docker when it detects a GPU, so
+CPU-only machines need no extra setup. 4 GB of VRAM ran the Design pipeline
+with minimal settings (2 backbones, 1 sequence each); larger runs and larger
+targets will need more. We haven't measured the limit.
+
+## Install the tools image
+
+On first launch, the app checks for Docker and shows an **Install the
+design tools** card with a **Download tools image** button. It pulls
+`rachmatthirdi/igem_brawijaya` from Docker Hub with real byte-level progress
+and a time estimate in the Live Console. Re-run it any time from
+**Settings → Download tools image**.
+
+If Docker isn't found, the card says so. Click **Later** to keep using the
+Target tab in the meantime.
+
+From a terminal, the equivalent is:
 
 ```bash
 docker pull rachmatthirdi/igem_brawijaya:latest
 ```
 
-### Building from source instead
+### Build from source instead
 
-If you've modified `docker/Dockerfile` yourself, or would rather build
-from source than trust a prebuilt image, Settings also has a **Build from
-source instead** link, or from a terminal:
+If you've changed `docker/Dockerfile`, or would rather not trust a prebuilt
+image, use **Settings → Build from source instead**, or:
 
 ```bash
 docker build -f docker/Dockerfile -t rachmatthirdi/igem_brawijaya:latest .
 ```
 
-What it does, step by step:
+This takes 20-30 minutes the first time; Docker's layer cache makes later
+rebuilds fast. The Dockerfile:
 
-1. Installs system packages (`git`, `curl`, `wget`, `unzip`, a C/C++
-   toolchain).
-2. Installs **Miniconda**.
-3. Creates the **`nanobody-tools`** conda env (Python 3.10) from
-   `environment-tools.yml` — FreeSASA, PRODIGY, CodonTransformer, and
-   their dependencies.
-4. Creates the **`discotope`** conda env (Python 3.11 + PyTorch/CUDA 12.1)
-   from `environment-discotope.yml`.
-5. Clones [DiscoTope-3.0](https://github.com/Magnushhoie/DiscoTope-3.0)
-   and installs it (plus its bundled model weights) into the `discotope`
-   env.
-6. Installs [`uv`](https://astral.sh/uv) (Astral's Python package
-   manager, needed by RFantibody), clones
-   [RFantibody](https://github.com/RosettaCommons/RFantibody), downloads
-   RFdiffusion's and ProteinMPNN's model weights, and runs `uv sync` to
-   build its virtual environment. **RF2's weights are deliberately not
-   downloaded here** — see below.
+1. Installs system packages and **Miniconda**.
+2. Creates the **`nanobody-tools`** conda env (Python 3.10, from
+   `environment-tools.yml`): FreeSASA, PRODIGY, CodonTransformer and their
+   dependencies, all version-pinned.
+3. Creates the **`discotope`** conda env (Python 3.11, PyTorch, CUDA 12.1,
+   from `environment-discotope.yml`).
+4. Clones [DiscoTope-3.0](https://github.com/Magnushhoie/DiscoTope-3.0) and
+   installs it, with its bundled model weights, into the `discotope` env.
+5. Installs [`uv`](https://astral.sh/uv), clones
+   [RFantibody](https://github.com/RosettaCommons/RFantibody), downloads the
+   RFdiffusion and ProteinMPNN weights, and builds its environment with
+   `uv sync`.
 
-This takes a while the first time (weight downloads alone are several
-GB); Docker's layer cache makes re-builds after small changes fast.
+The base image is plain `ubuntu:22.04`, not `nvidia/cuda`. Both PyTorch
+installs bundle their own CUDA runtime, so the container only needs the
+NVIDIA **driver** passed through at `docker run` time.
 
-The base image is plain `ubuntu:22.04`, not `nvidia/cuda`: DiscoTope's
-conda env pulls `pytorch-cuda` from the pytorch/nvidia channels, and
-RFantibody's `uv sync` installs its own pip torch wheel — both bundle
-their own CUDA runtime, so the container only needs the NVIDIA **driver**
-passed through at `docker run` time, not a matching system CUDA toolkit
-baked into the image.
+> **Reproducibility:** the conda environments are pinned to exact versions.
+> The DiscoTope-3.0 and RFantibody checkouts, Miniconda and `uv` are fetched
+> at their latest version when the image is built.
 
-### Why RF2's weights aren't in the image
+### Why the RF2 weights aren't in the image
 
 RFdiffusion's and ProteinMPNN's weights are BSD/MIT-licensed and fine to
-redistribute. RF2 (RoseTTAFold2)'s antibody-finetuned weights
-(`RF2_ab.pt`), however, are licensed under the
+redistribute. RF2's antibody-finetuned weights (`RF2_ab.pt`) are licensed
+under the
 [Rosetta-DL Non-Commercial license](https://github.com/RosettaCommons/Rosetta-DL/blob/main/LICENSE.md),
 which forbids the software being "published, distributed, or otherwise
-transferred" outside the licensee's own institution — so it can't be
-baked into an image published to a public registry, even for
-non-commercial use. Each install fetches its own copy instead, directly
-from the same official University of Washington server the Dockerfile
-uses for the others, the first time you run the Design pipeline. It's
-cached after that and bind-mounted into the container automatically -
-nothing to configure.
+transferred" outside the licensee's own institution. They can't go into an
+image on a public registry, even for non-commercial use.
 
-## 3. Verify it worked
+Instead, each install downloads its own copy from the official University of
+Washington server the first time you run the Design pipeline. The file is
+cached in `cache/weights/` and mounted into the container automatically.
+There's nothing to configure.
+
+## Verify the install
 
 - The **Install the design tools** card disappears once the download
-  finishes, and **Settings (⚙️) → Tools image** shows where Docker stored
-  the image. **Settings → Diagnostics → Test GPU access** confirms GPU
-  passthrough.
-- **Target tab**: analyze a PDB ID (e.g. `1CRN`) — FreeSASA and
-  DiscoTope-3.0 progress bars should complete instead of showing a
-  warning.
-- **Design tab**: with hotspots selected on the Target tab, set Backbone
-  Number and MPNN Designs/backbone to `1` (fastest smoke test) and run
-  the pipeline.
+  finishes. **Settings → Tools image** shows where Docker stored it.
+- **Settings → Diagnostics → Test GPU access** runs a small
+  `docker run --gpus all` container to confirm Docker can reach your GPU.
+- **Target tab:** analyze `1CRN`. The FreeSASA and DiscoTope-3.0 progress
+  bars should complete instead of showing a warning.
+- **Design tab:** with hotspots selected on the Target tab, set *Backbone
+  number* and *MPNN designs per backbone* to `1` and run the pipeline. This is
+  the fastest end-to-end smoke test.
 
-## Manual installation (no Docker)
+## Settings
 
-Docker is the tested, recommended path above — it pins every tool to exact
-versions instead of whatever conda/pip resolves on your machine. If you'd
-rather install everything natively yourself (e.g. to avoid the ~19 GB image
-download, or to inspect/debug the tools directly), this section walks
-through the same steps [docker/Dockerfile](docker/Dockerfile) runs,
-adapted per OS.
+Open **Settings** (the gear icon in the header). Settings persist across
+restarts.
 
-**Heads up:** the Electron app's Screening/Design/Construct tabs currently
-only launch tools through Docker (`electron/main.js` has no native
-execution path yet). A manual install lets you run
-FreeSASA/DiscoTope-3.0/RFantibody yourself from a terminal, but won't make
-those app tabs work without Docker unless the app is also changed to call
-your local conda envs instead. The **Target** tab needs neither Docker nor
-this section.
+<!-- markdownlint-disable MD013 -->
+| Setting | Default | Notes |
+| --- | --- | --- |
+| **Tools image name** | `rachmatthirdi/igem_brawijaya:latest` | Change only if you built or tagged the image under another name. |
+| **GPU detection** | Auto-detect | Force GPU on or off if auto-detection gets it wrong. **Test GPU access** checks that Docker can really reach the GPU, rather than trusting the override. |
+<!-- markdownlint-enable MD013 -->
 
-Pick your OS below. WSL follows the Ubuntu steps almost exactly; macOS has
-real differences (no CUDA, and RFantibody/RFdiffusion are primarily tested
-on Linux+NVIDIA) called out explicitly.
+## Project structure
+
+```text
+electron/    main.js (IPC, Docker orchestration), download.js (file downloader
+             with redirect handling and a size check), preload.js
+renderer/    index.html, css/, js/ (one module per tab, plus shared state,
+             console, glossary, onboarding, error messages, and the Mol* viewer)
+python/      Scripts that run inside Docker: FreeSASA, candidate scoring,
+             codon optimization and CAI, anchor + plasmid assembly,
+             restriction-site removal
+docker/      Dockerfile for the combined tools image
+docs/        PLATFORM_NOTES.md (platform test results, draft)
+environment-tools.yml, environment-discotope.yml   conda environments
+```
+
+These folders are created at runtime and are git-ignored:
+
+```text
+cache/       fetched PDB / InterPro / DiscoTope / anchor data (offline-first),
+             plus weights/ (RF2_ab.pt) and the HuggingFace and torch caches
+projects/    saved projects (JSON)
+output/      final FASTA files
+work/        scratch files for the pipeline
+```
+
+## Troubleshooting
+
+- **"The design tools aren't installed yet"** on a Target, Design, Screening
+  or Construct action: open Settings and click **Download tools image**, or
+  use the card shown on first launch.
+- **The image download fails or is slow:** click **Download tools image**
+  again. Docker resumes from the layers that already finished.
+- **The RF2 weight download fails on the first Design run:** the file comes
+  from `files.ipd.uw.edu`, which occasionally has brief outages. Retry the
+  pipeline. A failed attempt restarts from zero (no resume), but the file is
+  size-checked against the server's `Content-Length` before it's moved into
+  place, so a dropped connection never leaves a truncated weight file.
+- **GPU not passed through on Linux:** install the nvidia-container-toolkit,
+  then use **Settings → Test GPU access**. If the GPU is real but still not
+  detected, force it on under **GPU detection**.
+- **`conda env create` fails with a Terms of Service error** (only when
+  building a modified Dockerfile): recent conda releases require accepting the
+  `defaults` channel terms. The shipped Dockerfile already runs
+  `conda tos accept` for both channels right after installing Miniconda.
+
+## Known issues
+
+- **Target `5M13` crashes in RFdiffusion** with `ValueError: Non-positive
+  determinant (left-handed or null coordinate frame) in rotation matrix`.
+  Other targets (e.g. `1ZVH`) run fine. The cause hasn't been investigated, so
+  `5M13` was removed from the quick examples. Other targets haven't all been
+  verified either.
+- The Settings sidebar shows *Docker storage* as `/var/lib/docker` on Windows.
+  This is a display value only.
+- Windows Task Manager shows the *3D* engine by default, so a busy GPU can
+  look idle. Switch a graph to *Cuda* / *Compute*, or run `nvidia-smi`.
+
+Platform test results are tracked in
+[docs/PLATFORM_NOTES.md](docs/PLATFORM_NOTES.md).
+
+## Appendix: install without Docker
+
+Docker is the tested, recommended path. This appendix is for running the
+tools yourself, for example to avoid the image download or to debug a tool
+directly. It follows [docker/Dockerfile](docker/Dockerfile) step by step.
+
+> **The app itself still needs Docker.** The Design, Screening and Construct
+> tabs only launch tools through Docker (`electron/main.js` has no native
+> execution path), so a manual install lets you run the tools from a terminal
+> but not from the app. The basic Target tab features (PDB download, InterPro,
+> viewer) need neither.
+
+Pick your OS. WSL follows the Ubuntu steps almost exactly. macOS has real
+differences, called out below.
 
 ### Ubuntu / Linux
 
@@ -261,152 +338,72 @@ npm start
 
 ### WSL (Windows Subsystem for Linux)
 
-WSL runs a real Ubuntu userspace, so the steps are the **Ubuntu / Linux
-section above, run inside your WSL shell**, plus:
+WSL runs a real Ubuntu userspace, so follow the **Ubuntu / Linux** steps
+above inside your WSL shell, plus:
 
-1. Install WSL2 and an Ubuntu distro from **Windows PowerShell** (not
-   inside WSL):
+1. Install WSL2 and an Ubuntu distro from **Windows PowerShell** (not inside
+   WSL):
 
    ```powershell
    wsl --install -d Ubuntu-22.04
    ```
 
 2. Open the new Ubuntu terminal and follow the whole **Ubuntu / Linux**
-   section above inside it — same commands, same paths, nothing
-   WSL-specific in that part.
-3. **GPU (optional):** install only the regular Windows NVIDIA driver
-   (from nvidia.com) — do *not* install a separate Linux driver inside
-   WSL, it isn't needed and can conflict. WSL passes the Windows driver
-   through automatically. Verify from inside WSL with:
-
-   ```bash
-   nvidia-smi
-   ```
-
-4. **Running the Electron app's window:** on Windows 11, WSLg forwards
-   Linux GUI apps to your desktop automatically — `npm start` just works.
-   On Windows 10, you need a separate X server (e.g. VcXsrv) and
-   `DISPLAY` set manually.
+   section inside it. Nothing in it is WSL-specific.
+3. **GPU (optional):** install only the regular Windows NVIDIA driver. Do
+   *not* install a separate Linux driver inside WSL; it isn't needed and can
+   conflict. Verify from inside WSL with `nvidia-smi`.
+4. **Showing the app window:** on Windows 11, WSLg forwards Linux GUI apps
+   to your desktop, so `npm start` just works. On Windows 10 you need a
+   separate X server (e.g. VcXsrv) and `DISPLAY` set manually.
 
 ### macOS
 
-macOS has no NVIDIA GPU, so everything here runs CPU-only — RFdiffusion/RF2
-in particular will be much slower than on a CUDA machine (this matches
-what this README already says about Docker Desktop on macOS). More
-importantly, **RFdiffusion/RFantibody are research code primarily built
-and tested on Linux+CUDA** — installing them natively on macOS is not
-verified to work; treat this path as experimental and expect to debug
-dependency issues that don't come up on Linux.
+macOS has no NVIDIA GPU, so everything runs on CPU. RFdiffusion and
+RFantibody are research code built and tested primarily on Linux with CUDA,
+so a native macOS install is **experimental and not verified to work**.
+Expect to debug dependency issues.
 
-#### 1. Prerequisites
+1. **Xcode command line tools:**
 
-```bash
-xcode-select --install   # Xcode command line tools (git, clang, etc.)
-```
+   ```bash
+   xcode-select --install
+   ```
 
-**2. Miniconda** — pick the installer for your chip:
+2. **Miniconda**, using the installer for your chip:
 
-```bash
-# Apple Silicon (M1/M2/M3/M4)
-curl -fsSL -o /tmp/miniconda.sh \
-  https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
-# Intel Mac
-curl -fsSL -o /tmp/miniconda.sh \
-  https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+   ```bash
+   # Apple Silicon (M1/M2/M3/M4)
+   curl -fsSL -o /tmp/miniconda.sh \
+     https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
+   # Intel Mac
+   curl -fsSL -o /tmp/miniconda.sh \
+     https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
 
-bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
-source "$HOME/miniconda3/etc/profile.d/conda.sh"
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
-```
+   bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
+   source "$HOME/miniconda3/etc/profile.d/conda.sh"
+   conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+   conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+   ```
 
-**3. `nanobody-tools` env** — no CUDA dependency, installs as-is:
+3. **`nanobody-tools` env.** It has no CUDA dependency and installs as-is:
 
-```bash
-cd ~/igem_nanobody
-conda env create -f environment-tools.yml
-```
+   ```bash
+   cd ~/igem_nanobody
+   conda env create -f environment-tools.yml
+   ```
 
-**4. `discotope` env** — `environment-discotope.yml` pins
-`pytorch-cuda=12.1`, which doesn't exist on macOS. Create it manually
-instead, without the `nvidia` channel or the `pytorch-cuda` package:
+4. **`discotope` env.** `environment-discotope.yml` pins `pytorch-cuda=12.1`,
+   which doesn't exist on macOS, so create it manually without the `nvidia`
+   channel:
 
-```bash
-conda create -n discotope -c pytorch -c conda-forge \
-  python=3.11 pytorch numpy pandas pip -y
-```
+   ```bash
+   conda create -n discotope -c pytorch -c conda-forge \
+     python=3.11 pytorch numpy pandas pip -y
+   ```
 
-**5. DiscoTope-3.0, uv/RFantibody, RF2 weights** — same commands as the
-**Ubuntu / Linux** section, steps 4–6. If RFantibody's `uv sync` fails on
-a native macOS dependency, that's the expected risk mentioned above —
-there's currently no macOS-tested fallback for it in this repo.
-
-#### 6. Run the app
-
-```bash
-cd ~/igem_nanobody
-npm install
-npm start
-```
-
-## Settings
-
-Open **Settings** (⚙️ in the header):
-
-- **Tools image name** — Defaults to `rachmatthirdi/igem_brawijaya:latest`;
-  change only if you built/tagged the image under another name.
-- **GPU detection** — Auto-detect (default), or force GPU on/off manually
-  if auto-detection gets it wrong. A **Test GPU access** button in the
-  same section actually runs a small `docker --gpus all` container to
-  verify Docker can really reach your GPU, rather than just trusting the
-  override.
-
-Settings are saved locally and persist across restarts.
-
-## Project structure
-
-```text
-electron/       main.js (IPC + subprocess orchestration, Docker
-                detection/build), preload.js
-renderer/       index.html, css/, js/ (per-tab logic, live 3D viewer via
-                pdbe-molstar/Mol*)
-python/         FreeSASA, CAI, codon optimization, scoring, anchor/plasmid
-                builder (run inside Docker)
-docker/         Dockerfile (combined tools image: conda envs +
-                DiscoTope-3.0 + RFantibody)
-cache/          fetched PDB/InterPro/anchor data (offline-first), plus
-                weights/ (RF2_ab.pt, downloaded on first Design tab run)
-projects/       saved projects (JSON)
-output/         final FASTA ready for synthesis
-work/           pipeline scratch files (created automatically)
-```
-
-## Troubleshooting
-
-- **"The design tools aren't installed yet" message** on
-  Target/Design/Screening/Construct actions — open Settings and click
-  "Download tools image" (or use the install prompt shown on first
-  launch).
-- **Docker pull fails or is slow** — Docker Hub itself is generally
-  reliable, but if it fails partway, just click "Download tools image"
-  again; Docker resumes from whichever layers already finished.
-- **RF2 weight download fails on first Design run** — it's fetched
-  directly from a University of Washington file server
-  (`files.ipd.uw.edu`), which occasionally has brief outages. Just retry
-  the pipeline. Each attempt restarts the download from the beginning
-  (there's no resume), but the finished size is checked against the
-  server's `Content-Length` before the file is moved into place, so a
-  connection that drops partway is discarded rather than leaving a
-  truncated weight file the app would treat as already downloaded.
-- **Docker build fails on `conda env create` with a Terms of Service
-  error** (only applies if building from source) — recent conda releases
-  gate the `defaults` channels behind an explicit ToS acceptance;
-  `docker/Dockerfile` already runs `conda tos accept` for both channels
-  right after installing Miniconda, so this should only surface if you're
-  building a modified Dockerfile that skips that step.
-- **GPU not passed through inside Docker on Linux** — install
-  [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
-  then use Settings → **Test GPU access** to confirm Docker can reach it
-  (this runs `docker run --rm --gpus all ubuntu:22.04 nvidia-smi` for
-  you). If your GPU is real but still not detected, use the **GPU
-  detection** override in Settings to force it on.
+5. **DiscoTope-3.0, uv/RFantibody, RF2 weights:** same commands as the
+   **Ubuntu / Linux** steps 4-6. If `uv sync` fails on a native macOS
+   dependency, that's the expected risk above; there's no macOS-tested
+   fallback in this repo.
+6. **Run the app:** `npm install && npm start`.
