@@ -2132,7 +2132,13 @@ function classifyDockerFailure(res) {
   if (res.error && res.error.code === "ENOENT") return "not-installed";
   const out = `${res.stderr || ""}${res.stdout || ""}`.toLowerCase();
   if (out.includes("permission denied")) return "permission";
-  if (out.includes("cannot connect to the docker daemon")) return "not-running";
+  // Older CLIs say "Cannot connect to the Docker daemon"; Docker 29+ reports
+  // "failed to connect to the docker API at <socket>" instead.
+  if (
+    out.includes("cannot connect to the docker daemon") ||
+    out.includes("failed to connect to the docker api")
+  )
+    return "not-running";
   return "unknown";
 }
 

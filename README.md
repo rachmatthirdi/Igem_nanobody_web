@@ -67,7 +67,7 @@ download (see [Install the tools image](#install-the-tools-image)).
 | --- | --- |
 | **Node.js** 18 or newer | Tested with v24. `npm` is included. |
 | **git** | To clone this repo. |
-| **Docker** | Docker Desktop (macOS/Windows) or Docker Engine (Linux), with the daemon running. Needed for everything except the basic Target tab features. |
+| **Docker** | Docker Desktop (macOS/Windows) or Docker Engine (Linux); OrbStack and Colima also work. Installing it is not enough: **start it before you launch the app** and wait until it reports running, because the app talks to the running daemon. Needed for everything except the basic Target tab features. |
 | **A supported host** | Linux, WSL2, macOS and Windows. The project folder is mounted at one fixed path inside the container (`/nbroot`) on every host, and paths are translated in and out, so the app follows whatever path your project lives at: `/home/you/igem`, `D:\work\igem`, anything. The one restriction is that the path must not contain a `:`, since `docker run -v src:dst` splits on colons. The app checks this at startup and says so. |
 | **A shared project folder** | Once per launch the app checks that the project folder really round-trips into a container. A mount that is accepted but not shared makes every tool "succeed" while writing into the container, where `--rm` discards it. **On macOS and Windows,** add the project folder under Docker Desktop → Settings → Resources → File Sharing. |
 | **Internet** | One-time downloads: Electron (~200 MB), the tools image (~19 GB compressed), and the RF2 weights (~281 MB, on the first Design run). |
@@ -105,7 +105,8 @@ design tools** card with a **Download tools image** button. It pulls
 and a time estimate in the Live Console. Re-run it any time from
 **Settings → Download tools image**.
 
-If Docker isn't found, the card says so. Click **Later** to keep using the
+If Docker isn't found, the card says so, and tells a missing install apart
+from one that is installed but not running. Click **Later** to keep using the
 Target tab in the meantime.
 
 From a terminal, the equivalent is:
@@ -213,6 +214,10 @@ work/        scratch files for the pipeline
 
 ## Troubleshooting
 
+- **"Docker is installed, but it isn't running":** start Docker Desktop,
+  OrbStack or Colima, wait until it reports running (`docker info` should print
+  a `Server:` section), then reopen the app. The check runs once at launch, so
+  starting Docker afterwards needs a restart of the app.
 - **"The design tools aren't installed yet"** on a Target, Design, Screening
   or Construct action: open Settings and click **Download tools image**, or
   use the card shown on first launch.
