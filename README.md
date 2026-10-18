@@ -71,7 +71,7 @@ download (see [Install the tools image](#install-the-tools-image)).
 | **A supported host** | Linux, WSL2, macOS and Windows. The project folder is mounted at one fixed path inside the container (`/nbroot`) on every host, and paths are translated in and out, so the app follows whatever path your project lives at: `/home/you/igem`, `D:\work\igem`, anything. The one restriction is that the path must not contain a `:`, since `docker run -v src:dst` splits on colons. The app checks this at startup and says so. |
 | **A shared project folder** | Once per launch the app checks that the project folder really round-trips into a container. A mount that is accepted but not shared makes every tool "succeed" while writing into the container, where `--rm` discards it. **On macOS and Windows,** add the project folder under Docker Desktop → Settings → Resources → File Sharing. |
 | **Internet** | One-time downloads: Electron (~200 MB), the tools image (~19 GB compressed), and the RF2 weights (~281 MB, on the first Design run). |
-| **Disk space** | The tools image is ~19 GB to download but about **53 GB on disk** once extracted. |
+| **Disk space** | The tools image is ~19 GB to download but about **53 GB on disk** once extracted. The app checks the free space where Docker stores its data before it starts the download. |
 | **NVIDIA GPU** (optional) | Strongly recommended for Design. See below. |
 <!-- markdownlint-enable MD013 -->
 
@@ -221,6 +221,12 @@ work/        scratch files for the pipeline
 - **"The design tools aren't installed yet"** on a Target, Design, Screening
   or Construct action: open Settings and click **Download tools image**, or
   use the card shown on first launch.
+- **"Not enough disk space to download the Docker image":** the disk that holds
+  Docker's data has less than ~55 GB free. The message names the folder. Free
+  some space there, or move Docker's data directory to a larger disk, then try
+  again. The check is skipped when the app can't read that disk, which is the
+  case for Docker Desktop on macOS and Windows: there, make sure the Docker
+  Desktop virtual disk is large enough.
 - **The image download fails or is slow:** click **Download tools image**
   again. Docker resumes from the layers that already finished.
 - **"produced no readable output" or "doesn't exist on the host":** the container ran and reported success, but the host can't see the file it wrote. That means the project folder isn't really shared into the container. On macOS and Windows, add the project folder's parent under Docker Desktop → Settings → Resources → File Sharing. This used to fail silently: the run looked successful and the Live Console printed a plausible path for a file that had already been discarded with the container.
@@ -273,14 +279,16 @@ lists the scripts and the settings (`NB_IMAGE`, `NB_ENV`, `NB_CACHE`).
 npm test
 ```
 
-This runs two small suites that need no Docker. `tests/aa.test.js` covers the
-amino-acid table and uses Node's built-in test runner. `tests/test_tools.py`
+This runs three test files, and none of them needs Docker. `tests/aa.test.js`
+covers the amino-acid table and `tests/disk-space.test.js` covers the free-space
+check before the image download. Both use Node's built-in test runner.
+`tests/test_tools.py`
 covers restriction-site finding and removal, the E. coli codon table, the Codon
 Adaptation Index and GC content, and uses only the Python standard library. On
 Windows the Python suite needs `python` instead of `python3`: run
 `python -m unittest discover -s tests -p "test_*.py"`.
 
-They cover the pure logic that builds the insert. They do not cover the Electron
+They cover pure logic only: the insert, and the free-space check. They do not cover the Electron
 main process, the interface, Docker orchestration or the scientific tools.
 
 ## License

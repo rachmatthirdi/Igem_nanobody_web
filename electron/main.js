@@ -9,6 +9,7 @@ const {
   formatEta,
   formatMB,
 } = require("./download");
+const { checkFreeSpace, shortfallMessage } = require("./disk-space");
 
 // On native Wayland sessions, Chromium's default wayland ozone backend can
 // segfault at startup when combined with Vulkan on some GPU/driver stacks
@@ -2204,6 +2205,25 @@ ipcMain.handle("test-gpu-docker", async () => {
   return { success: true, message: res.stdout.trim() };
 });
 
+// Refuses to start the pull when the disk that holds Docker's data is too small
+// for the image (about 53 GB unpacked), instead of failing partway through a
+// 19 GB download. Skipped when the image is already there, since little is left
+// to fetch, and when the free space can't be read (see checkFreeSpace).
+async function assertDiskSpaceForPull(imageRef) {
+  const have = spawnSync("docker", ["image", "inspect", imageRef], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  if (!have.error && have.status === 0) return;
+  const info = spawnSync("docker", ["info", "--format", "{{.DockerRootDir}}"], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  const dir = !info.error && info.status === 0 ? info.stdout.trim() : null;
+  const result = await checkFreeSpace(dir);
+  if (result.checked && !result.ok) throw new Error(shortfallMessage(result));
+}
+
 // Pulls the pre-built image from Docker Hub - the default, recommended path
 // for most users, since it skips the ~20-30 min local build (conda solves,
 // weight downloads, uv sync) entirely. Doesn't include RF2_ab.pt (see the
@@ -2215,6 +2235,7 @@ ipcMain.handle("pull-docker-image", async () => {
   const blockers = platformBlockers();
   if (blockers.length) throw new Error(blockers[0]);
   const settings = getSettings();
+  await assertDiskSpaceForPull(settings.dockerImage);
   sendProgress("install", 0, "running", "Pulling Docker image...");
   try {
     await withRetry(
