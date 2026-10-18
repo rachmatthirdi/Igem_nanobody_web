@@ -6,6 +6,7 @@ cache/
 work/
 output/
 projects/
+docs/
 
 # Python
 __pycache__/
@@ -20,6 +21,7 @@ build/
 # Logs
 *.log
 npm-debug.log*
+
 
 # OS / editor cruft
 .DS_Store
