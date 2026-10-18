@@ -3,10 +3,14 @@
 # pytorch/nvidia channels, and RFantibody's `uv sync` installs its own pip torch wheel -- both
 # bundle their own CUDA runtime, so the container only needs the NVIDIA driver passed through at
 # `docker run` time, not a matching system CUDA toolkit baked into the image.
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:b8b6ee6aa931ecd9d0d952abc34dc0e5f7c6a30c6bb71b079fe399fde0329c02
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-ENV DEBIAN_FRONTEND=noninteractive \
+# No pip download cache: nothing reads it at runtime, and the old image kept
+# ~2.8 GB of pip wheels in a layer. (uv gets the same treatment below, scoped
+# to `uv sync` only, so `uv run` behaves exactly as before at runtime.)
+ENV PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive \
     CONDA_DIR=/opt/conda \
     PATH=/opt/conda/bin:/root/.local/bin:/root/.cargo/bin:$PATH
 
@@ -16,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Miniconda
-RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
+RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-py314_26.7.1-0-Linux-x86_64.sh -o /tmp/miniconda.sh \
     && bash /tmp/miniconda.sh -b -p "$CONDA_DIR" \
     && rm /tmp/miniconda.sh \
     && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
@@ -30,20 +34,29 @@ RUN conda env create -f environment-tools.yml && conda clean -afy
 
 # 4. discotope env (Python 3.11 + PyTorch/CUDA 12.1)
 COPY environment-discotope.yml .
-RUN conda env create -f environment-discotope.yml && conda clean -afy
+# pip inside this step pulls multi-GB wheels; one dropped connection (IncompleteRead)
+# otherwise fails the whole build. Scoped to the steps that need it so earlier
+# layers keep their cache.
+RUN PIP_RETRIES=10 PIP_RESUME_RETRIES=5 conda env create -f environment-discotope.yml && conda clean -afy
 
 # 5. DiscoTope-3.0: clone and install into the discotope env from its own requirements.txt
 #    (the pinned versions there are the source of truth, not environment-discotope.yml).
 #    The repo ships its 100 XGBoost models as models.zip, not unpacked - main.py
 #    expects the extracted XGB_n_of_100.json files directly under models/.
-RUN git clone --depth 1 https://github.com/Magnushhoie/DiscoTope-3.0.git DiscoTope-3.0 \
-    && cd DiscoTope-3.0 && unzip -o models.zip && cd .. \
-    && conda run -n discotope pip install --no-cache-dir -r DiscoTope-3.0/requirements.txt \
+ARG DISCOTOPE_COMMIT=35d9f2e55f97eaba2a7acefbc394db58fb9670bc
+RUN git init DiscoTope-3.0 \
+    && git -C DiscoTope-3.0 fetch --depth 1 https://github.com/Magnushhoie/DiscoTope-3.0.git "$DISCOTOPE_COMMIT" \
+    && git -C DiscoTope-3.0 checkout FETCH_HEAD \
+    && cd DiscoTope-3.0 && unzip -o models.zip && rm models.zip && cd .. \
+    && PIP_RETRIES=10 PIP_RESUME_RETRIES=5 conda run -n discotope pip install --no-cache-dir -r DiscoTope-3.0/requirements.txt \
     && conda run -n discotope pip install --no-cache-dir -e DiscoTope-3.0
 
 # 6. uv + RFantibody: clone, download model weights, build its own venv via `uv sync`
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-RUN git clone --depth 1 https://github.com/RosettaCommons/RFantibody.git RFantibody
+RUN curl -LsSf https://astral.sh/uv/0.12.19/install.sh | sh
+ARG RFANTIBODY_COMMIT=3e5a5bb1cb98befde9fc049ae3ff58cabb491f67
+RUN git init RFantibody \
+    && git -C RFantibody fetch --depth 1 https://github.com/RosettaCommons/RFantibody.git "$RFANTIBODY_COMMIT" \
+    && git -C RFantibody checkout FETCH_HEAD
 WORKDIR /opt/tools/RFantibody
 
 # RF2_ab.pt (RoseTTAFold2's antibody-finetuned weights) is licensed under
@@ -61,14 +74,14 @@ WORKDIR /opt/tools/RFantibody
 # wget with no --retry/resume, so a single transient failure kills the whole
 # build.
 RUN mkdir -p weights && cd weights \
-    && curl -fSL --retry 10 --retry-delay 15 --retry-max-time 600 --connect-timeout 20 -o RFdiffusion_Ab.pt \
+    && curl -fSL -C - --retry-all-errors --retry 10 --retry-delay 15 --retry-max-time 3600 --connect-timeout 20 -o RFdiffusion_Ab.pt \
        https://files.ipd.uw.edu/pub/RFantibody/RFdiffusion_Ab.pt \
-    && curl -fSL --retry 10 --retry-delay 15 --retry-max-time 600 --connect-timeout 20 -o ProteinMPNN_v48_noise_0.2.pt \
+    && curl -fSL -C - --retry-all-errors --retry 10 --retry-delay 15 --retry-max-time 3600 --connect-timeout 20 -o ProteinMPNN_v48_noise_0.2.pt \
        https://files.ipd.uw.edu/pub/RFantibody/ProteinMPNN_v48_noise_0.2.pt \
-    && curl -fSL --retry 10 --retry-delay 15 --retry-max-time 600 --connect-timeout 20 \
+    && curl -fSL -C - --retry-all-errors --retry 10 --retry-delay 15 --retry-max-time 3600 --connect-timeout 20 \
        -o RFab_noframework-nosidechains-5-10-23_trainingparamsadded.pt \
        "https://zenodo.org/records/17488258/files/RFab_noframework-nosidechains-5-10-23_trainingparamsadded.pt?download=1"
-RUN uv sync
+RUN UV_HTTP_TIMEOUT=300 UV_HTTP_RETRIES=10 UV_NO_CACHE=1 uv sync
 
 WORKDIR /workspace
 HEALTHCHECK NONE
