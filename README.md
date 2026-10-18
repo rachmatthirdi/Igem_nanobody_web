@@ -1,6 +1,6 @@
-# CATCHERs: Software
+# CATCHERs Generator
 
-CATCHERs: Software is the desktop app (Electron) from **CATCHERs**
+CATCHERs Generator is the desktop app (Electron) from **CATCHERs**
 (Computationally Assisted Target-specific Cell-based Host Engineered
 Recognitions), an iGEM project. It takes you from a target protein to a
 synthesis-ready nanobody insert, in four steps:
