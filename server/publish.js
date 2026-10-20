@@ -90,6 +90,7 @@ function publishDesign(store, sessionDir, job) {
     title: `${p.pdbId} nanobody design`,
     pdbId: p.pdbId,
     summary: { candidates: candidates.length, backbones: p.numDesigns },
+    search: `${candidates.map((c) => c.id).join(" ")} hotspot ${p.hotspotResidues.join(" ")}`,
     data: {
       params: {
         pdbId: p.pdbId,
@@ -113,6 +114,7 @@ function publishConstruct(store, sessionDir, params, result, nonce) {
     title: `${params.candidateId} in ${params.vector}`,
     pdbId: null,
     summary: { lengthBp: num(result.lengthBp), vector: params.vector },
+    search: `${params.candidateId} ${params.vector}${params.includePelb ? " pelb" : ""}`,
     data: {
       candidateId: params.candidateId,
       vector: params.vector,

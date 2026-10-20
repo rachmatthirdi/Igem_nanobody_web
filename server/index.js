@@ -6,10 +6,10 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
-const { Sessions } = require("./sessions");
+const { Sessions, dirSize } = require("./sessions");
 const { Runner, HttpError } = require("./runner");
 const { validate, ValidationError, LOCAL_CHANNELS, QUEUED_CHANNELS } = require("./validate");
-const { Store } = require("./store");
+const { Store, ID } = require("./store");
 const { publishTarget, publishDesign, publishConstruct } = require("./publish");
 
 const sessions = new Sessions(config);
@@ -244,6 +244,8 @@ async function handleApi(req, res, url) {
 
     const args = validate(channel, body.args ?? [], { root: session.dir, limits: config.limits });
 
+    if (channel === "import-shared") return json(res, 200, { result: importShared(session, args[0].id) });
+
     if (QUEUED_CHANNELS.has(channel)) {
       const job = runner.submit(session, args[0]);
       return json(res, 202, { result: runner.view(job) });
@@ -258,7 +260,9 @@ async function handleApi(req, res, url) {
       return json(res, 200, { result: await scaffoldCache });
     }
     const value = await runner.light(session, channel, args);
-    publishLightResult(session, channel, args, value);
+    const meta = publishLightResult(session, channel, args, value);
+    // Tell the user where their construct can be found again.
+    if (meta && channel === "build-plasmid" && value && typeof value === "object") value.sharedId = meta.id;
     return json(res, 200, { result: value });
   }
 
@@ -269,6 +273,7 @@ async function handleApi(req, res, url) {
 // here is logged and never reaches the user: their own result is fine.
 function publishLightResult(session, channel, args, value) {
   try {
+    let meta = null;
     const stem = (p) => /([A-Z0-9]{4})_chainA\.pdb$/.exec(String(p))?.[1];
     if (channel === "fetch-pdb") {
       // Browsing a structure is not a result; only name an entry that exists.
@@ -281,11 +286,36 @@ function publishLightResult(session, channel, args, value) {
     } else if (channel === "run-interpro") {
       publishTarget(store, args[0].pdbId, { domains: value.domains });
     } else if (channel === "build-plasmid") {
-      publishConstruct(store, session.dir, args[0], value, require("crypto").randomBytes(4).toString("hex"));
+      meta = publishConstruct(store, session.dir, args[0], value, require("crypto").randomBytes(4).toString("hex"));
     }
+    return meta;
   } catch (e) {
     console.error(`Could not publish ${channel}: ${e.message}`);
+    return null;
   }
+}
+
+// Copies a shared design's structures into the caller's own workspace, so the
+// Screening and Construct steps can work on someone else's result. The files
+// come from the store (written by the server), never from the caller.
+function importShared(session, id) {
+  const entry = store.getData(id);
+  if (!entry || entry.meta.kind !== "design") throw new HttpError(404, "No such design (it may have expired).");
+  if (dirSize(session.dir, config.sessionDiskBytes) > config.sessionDiskBytes)
+    throw new HttpError(413, "Your workspace is full. Delete some projects, or start a new session.");
+  const dir = path.join(session.dir, "work", `shared_${id}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const candidates = [];
+  for (const c of entry.data.candidates) {
+    if (!c.file) continue;
+    const src = store.filePath(id, c.file);
+    if (!src) continue;
+    const dst = path.join(dir, c.file);
+    fs.copyFileSync(src, dst);
+    const { file, ...metrics } = c;
+    candidates.push({ ...metrics, pdbPath: dst });
+  }
+  return { id, pdbId: entry.meta.pdbId, params: entry.data.params, candidates };
 }
 
 // Read-only and public: no session is created or needed. Rate limited per
@@ -312,7 +342,12 @@ function handleShared(req, res, url) {
     const pdb = (url.searchParams.get("pdb") || "").toUpperCase() || undefined;
     if (pdb && !/^[A-Z0-9]{4}$/.test(pdb)) throw new HttpError(400, "Invalid PDB ID.");
     const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 50));
-    return json(res, 200, { retentionDays: config.sharedRetentionDays, entries: store.list({ kind, pdbId: pdb, limit }) });
+    const q = (url.searchParams.get("q") || "").slice(0, 100);
+    let ids;
+    if (url.searchParams.get("ids") !== null) {
+      ids = url.searchParams.get("ids").split(",").filter((x) => ID.test(x)).slice(0, 50);
+    }
+    return json(res, 200, { retentionDays: config.sharedRetentionDays, entries: store.list({ kind, pdbId: pdb, q, ids, limit }) });
   }
 
   const m = /^\/api\/shared\/([A-Za-z0-9_-]{1,60})(?:\/file\/([A-Za-z0-9_.-]{1,130}))?$/.exec(url.pathname);

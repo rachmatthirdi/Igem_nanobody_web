@@ -154,3 +154,19 @@ test("a construct is published with its FASTA, read only from the session", () =
   assert.equal(fs.readFileSync(store.filePath("construct-n1", "construct.fasta"), "utf8"), ">c\nATG\n");
   assert.throws(() => publishConstruct(store, sess, params, { fastaPath: "/etc/passwd" }, "n2"));
 });
+
+test("search matches every word across title, ids, kind and extra words; ids narrows to a list", () => {
+  const { store } = setup();
+  const n = Date.now();
+  store.put("design-a1", entry({ title: "1ZVH nanobody design", search: "design_0_best design_1_best hotspot 50" }), n - 3000);
+  store.put("design-b2", entry({ title: "2Z1P nanobody design", pdbId: "2Z1P", search: "other_0" }), n - 2000);
+  store.put("construct-c3", entry({ kind: "construct", title: "design_1 in pET-28a(+)", pdbId: null, search: "design_1 pet-28a(+) pelb" }), n - 1000);
+  const ids = (q) => store.list({ q }).map((m) => m.id);
+  assert.deepEqual(ids("design_1_best"), ["design-a1"]);
+  assert.deepEqual(ids("pet-28a pelb"), ["construct-c3"]);
+  assert.deepEqual(ids("DESIGN-B2"), ["design-b2"], "case-insensitive, matches the result id");
+  assert.deepEqual(ids("nanobody 2z1p"), ["design-b2"], "all words must match");
+  assert.deepEqual(ids("nothing-like-this"), []);
+  assert.deepEqual(store.list({ ids: ["design-a1", "construct-c3", "design-zzz"] }).map((m) => m.id), ["construct-c3", "design-a1"]);
+  assert.deepEqual(store.list({ ids: [] }), [], "an empty personal list shows nothing, not everything");
+});

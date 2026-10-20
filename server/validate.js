@@ -217,6 +217,11 @@ const SHAPES = {
     return [a[0]];
   },
   "list-projects": () => [],
+  "import-shared": (a) => {
+    const p = obj(a[0]);
+    if (typeof p.id !== "string" || !/^design-[A-Za-z0-9_-]{1,40}$/.test(p.id)) bad("Invalid result id.");
+    return [{ id: p.id }];
+  },
 
   // The whole design pipeline as one job (RFdiffusion -> ProteinMPNN -> RF2
   // -> scoring). Its numbers are what the quota is about.

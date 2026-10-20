@@ -109,6 +109,30 @@
     };
   }
 
+  // ---- "my results": ids of what this browser produced -------------------------------
+  // Kept only in this browser as a convenience for finding results again. The
+  // results themselves live on the server in the shared gallery for 7 days, so
+  // an id or link written down works from any browser.
+  const MINE_KEY = "nb.myResults";
+  function mine() {
+    try {
+      const v = JSON.parse(localStorage.getItem(MINE_KEY) || "[]");
+      return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 50) : [];
+    } catch {
+      return [];
+    }
+  }
+  function remember(id) {
+    if (typeof id !== "string" || !id) return;
+    try {
+      localStorage.setItem(MINE_KEY, JSON.stringify([id, ...mine().filter((x) => x !== id)].slice(0, 50)));
+    } catch {
+      // Private mode: the link below still works.
+    }
+    const link = `${location.origin}${location.pathname}#result=${id}`;
+    window.ConsolePanel?.log("ok", `Saved to Shared results as ${id} for 7 days. Link: ${link}`, "shared");
+  }
+
   // ---- the design job -----------------------------------------------------------
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -131,6 +155,7 @@
       if (onUpdate) onUpdate(view);
       if (view.status === "done") {
         refreshLimits();
+        remember(view.resultId);
         return view.result;
       }
       if (view.status === "error" || view.status === "cancelled") {
@@ -191,7 +216,12 @@
 
     fetchAnchor: call("fetch-anchor"),
     buildAnchorConstruct: call("build-anchor-construct"),
-    buildPlasmid: call("build-plasmid"),
+    buildPlasmid: async (...args) => {
+      const result = await post("build-plasmid", args);
+      remember(result && result.sharedId);
+      return result;
+    },
+    importShared: call("import-shared"),
     openOutputFolder,
 
     getPlatformInfo: call("get-platform-info"),
@@ -261,5 +291,6 @@
     refreshLimits();
   });
 
+  window.WebResults = { mine };
   window.WebLimits = { refresh: refreshLimits, get: () => limits };
 })();

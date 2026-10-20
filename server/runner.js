@@ -170,6 +170,7 @@ class Runner {
       error: null,
       charged: params.numDesigns,
       producedBackbones: false,
+      resultId: null,
       child: null,
       cancelRequested: false,
       // Called for each stage-progress event the job produces.
@@ -200,7 +201,10 @@ class Runner {
       createdAt: job.createdAt,
       startedAt: job.startedAt,
     };
-    if (job.status === "done") v.result = job.result;
+    if (job.status === "done") {
+      v.result = job.result;
+      v.resultId = job.resultId || null; // where it can be found in the shared gallery
+    }
     if (job.status === "error" || job.status === "cancelled") v.error = job.error;
     return v;
   }
@@ -237,7 +241,7 @@ class Runner {
       });
       job.status = "done";
       try {
-        if (this.onDone) this.onDone(job);
+        if (this.onDone) job.resultId = this.onDone(job)?.id || null;
       } catch (e) {
         console.error(`Could not publish design ${job.id}: ${e.message}`);
       }

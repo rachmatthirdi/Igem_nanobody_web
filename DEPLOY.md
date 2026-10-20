@@ -127,6 +127,15 @@ restarts its clock.
 - Only data made by the server is published, never state sent by the browser,
   and the page shows it as plain text, so a visitor cannot put text or markup
   in front of others.
+- **Finding a result again does not depend on the session.** Every result has an
+  id (for example `design-1a2b3c4d5e6f7a8b`) and a link (`/#result=<id>`). When a
+  design or construct finishes, its id and link appear in the live console and
+  are remembered in that browser for the "Only mine" filter. Anyone can also
+  search the gallery by text (title, PDB ID, candidate name, vector, result id).
+  Losing the cookie only loses the "Only mine" shortcut, not the result.
+- **A shared design can be continued** ("Continue in my workspace"): its
+  structures are copied into the visitor's own workspace and open in
+  Screening and Construct. Re-scoring is not available for imported designs.
 - The gallery tells visitors that results are public. **Anything a user runs is
   visible to every visitor for 7 days**, including the target and the sequences
   designed. There is no opt-out; add one if users may work on unpublished targets.
@@ -211,6 +220,10 @@ tools image:
   without disturbing the running one; cancelling the running job started the
   next; one session could not read another's job or workspace; no containers
   were left behind and every quota returned to zero.
+- Search, the "Only mine" list, permalinks and "Continue in my workspace":
+  searches found the right entries, a link opened its result directly, and two
+  sessions imported the same design into separate workspaces; the candidates
+  then showed in Screening. Bad or expired ids were refused (400/404).
 - Shared results in a real browser: a target analysis and a construct produced
   through the server appeared for a visitor with no session, opened with their
   tables and FASTA, and a result disappeared from the list after its (shortened)

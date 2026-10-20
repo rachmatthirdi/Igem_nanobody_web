@@ -43,7 +43,7 @@ class Store {
 
   // Creates or replaces an entry. `files` maps a file name to its bytes.
   // Written to a temporary folder and renamed, so a reader never sees half an entry.
-  put(id, { kind, title, pdbId, summary, data, files = {} }, now = Date.now()) {
+  put(id, { kind, title, pdbId, summary, data, files = {}, search = "" }, now = Date.now()) {
     if (!ID.test(id) || !KINDS.has(kind)) throw new Error(`Bad shared result id: ${id}`);
     let bytes = 0;
     for (const [name, content] of Object.entries(files)) {
@@ -61,6 +61,8 @@ class Store {
       expiresAt: now + this.retentionMs,
       summary: summary || {},
       files: Object.keys(files),
+      // Extra words the text search may match (candidate ids, vector...).
+      search: String(search).slice(0, 600).toLowerCase(),
     };
     const tmp = path.join(this.dir, `${id}.tmp-${crypto.randomBytes(4).toString("hex")}`);
     fs.mkdirSync(path.join(tmp, "files"), { recursive: true });
@@ -76,11 +78,21 @@ class Store {
   }
 
   // Newest first. `visible` lets a kind hide entries that are not ready yet.
-  list({ kind, pdbId, limit = 50 } = {}, now = Date.now()) {
+  // `q`: every word must appear in the title, PDB id, kind, id or search text.
+  // `ids`: only these entries (the visitor's own list, kept in their browser).
+  list({ kind, pdbId, q, ids, limit = 50 } = {}, now = Date.now()) {
+    const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
+    const only = ids ? new Set(ids) : null;
     return [...this.index.values()]
       .filter((m) => m.expiresAt > now)
       .filter((m) => !kind || m.kind === kind)
       .filter((m) => !pdbId || m.pdbId === pdbId)
+      .filter((m) => !only || only.has(m.id))
+      .filter((m) => {
+        if (!words.length) return true;
+        const hay = `${m.id} ${m.kind} ${m.title} ${m.pdbId || ""} ${m.search || ""}`.toLowerCase();
+        return words.every((w) => hay.includes(w));
+      })
       .filter((m) => m.summary?.ready !== false)
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, Math.max(1, Math.min(limit, 100)));

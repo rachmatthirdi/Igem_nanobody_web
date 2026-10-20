@@ -59,20 +59,24 @@
       const qs = new URLSearchParams();
       if (kind) qs.set("kind", kind);
       if (/^[A-Z0-9]{4}$/.test(pdb)) qs.set("pdb", pdb);
+      const q = $("shared-q").value.trim();
+      if (q) qs.set("q", q);
+      if ($("shared-mine").checked) qs.set("ids", (window.WebResults?.mine() || []).join(","));
       const { entries, retentionDays } = await get(`/api/shared${qs.size ? `?${qs}` : ""}`);
       $("shared-retention").textContent = `${retentionDays} days`;
       if (!entries.length) {
-        host.replaceChildren(el("p", { class: "section-hint" }, "Nothing here yet. Results appear after someone runs an analysis, a design or a construct."));
+        host.replaceChildren(el("p", { class: "section-hint" }, q || pdb || kind || $("shared-mine").checked ? "No results match. Results disappear 7 days after they were produced." : "Nothing here yet. Results appear after someone runs an analysis, a design or a construct."));
         return;
       }
       host.replaceChildren(
         table(
-          ["Type", "Name", "PDB", "Details", "Expires", ""],
+          ["Type", "Name", "PDB", "Details", "Result id", "Expires", ""],
           entries.map((m) => [
             KIND[m.kind] || m.kind,
             m.title,
             m.pdbId || "-",
             summaryText(m),
+            m.id,
             timeLeft(m.expiresAt),
             el("button", { class: "btn btn-secondary", onclick: () => showDetail(m.id) }, "Open"),
           ]),
@@ -99,10 +103,41 @@
       const back = el("button", { class: "btn btn-ghost", onclick: showList }, "← Back to the list");
       const head = el("h3", {}, `${KIND[meta.kind] || meta.kind}: ${meta.title}`);
       const sub = el("p", { class: "section-hint" }, `${timeLeft(meta.expiresAt)} - produced ${new Date(meta.createdAt).toLocaleString()}`);
+      const url = `${location.origin}${location.pathname}#result=${meta.id}`;
+      const copy = el("button", { class: "btn btn-ghost", onclick: () => copyLink(url, copy) }, "Copy link");
+      const idLine = el("p", { class: "section-hint" }, `Result id: ${meta.id} - `, copy);
       const body = meta.kind === "target" ? targetView(data) : meta.kind === "design" ? designView(meta, data) : constructView(meta, data);
-      host.replaceChildren(back, head, sub, body);
+      history.replaceState(null, "", `#result=${meta.id}`);
+      host.replaceChildren(back, head, sub, idLine, body);
     } catch (e) {
       host.replaceChildren(el("p", { class: "status-fail" }, e.message), el("button", { class: "btn btn-ghost", onclick: showList }, "← Back"));
+    }
+  }
+
+  async function copyLink(url, button) {
+    try {
+      await navigator.clipboard.writeText(url);
+      button.textContent = "Copied";
+    } catch {
+      button.replaceWith(el("input", { type: "text", value: url, readonly: "", size: "48" }));
+    }
+  }
+
+  async function continueWith(id) {
+    const note = $("shared-continue-note");
+    note.textContent = "Copying to your workspace...";
+    try {
+      const r = await window.api.importShared({ id });
+      if (!r.candidates.length) throw new Error("This result has no structures to work with.");
+      window.AppState.pdbId = r.pdbId;
+      window.AppState.candidates = r.candidates;
+      window.AppState.selectedCandidateIds = [];
+      window.A11y.closeModal($("shared-modal"));
+      window.ConsolePanel?.log("ok", `Loaded ${r.candidates.length} candidate(s) from ${id}. Re-scoring is not available for imported designs.`, "shared");
+      window.App.switchTab("screening");
+      window.TabScreening?.refresh();
+    } catch (e) {
+      note.textContent = e.message;
     }
   }
 
@@ -146,7 +181,8 @@
           )
         : "-",
     ]);
-    return el("div", {}, info, table(["Candidate", "pLDDT", "PAE", "CDR RMSD", "H3 RMSD", "ΔG (kcal/mol)", "Structure"], rows), viewerBox, note);
+    const cont = el("button", { class: "btn btn-primary", onclick: () => continueWith(meta.id) }, "Continue in my workspace (Screening)");
+    return el("div", {}, info, el("p", {}, cont, " ", el("span", { id: "shared-continue-note", class: "section-hint" })), table(["Candidate", "pLDDT", "PAE", "CDR RMSD", "H3 RMSD", "ΔG (kcal/mol)", "Structure"], rows), viewerBox, note);
   }
 
   async function view3d(id, file, box, note) {
@@ -181,15 +217,30 @@
   }
 
   // ---- wiring --------------------------------------------------------------------
-  function open() {
-    window.A11y.openModal($("shared-modal"));
-    showList();
+  function open(id) {
+    window.A11y.openModal($("shared-modal"), { onClose: () => history.replaceState(null, "", location.pathname + location.search) });
+    if (typeof id === "string") showDetail(id);
+    else showList();
+  }
+
+  // A link like  /#result=design-ab12cd34  opens that result straight away.
+  function openFromHash() {
+    const m = /^#result=((?:target|design|construct)-[A-Za-z0-9_-]{1,40})$/.exec(location.hash);
+    if (m) open(m[1]);
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("btn-shared")?.addEventListener("click", open);
+    $("btn-shared")?.addEventListener("click", () => open());
     $("btn-shared-close")?.addEventListener("click", () => window.A11y.closeModal($("shared-modal")));
     $("shared-kind")?.addEventListener("change", showList);
     $("shared-pdb")?.addEventListener("change", showList);
+    $("shared-mine")?.addEventListener("change", showList);
+    let timer = null;
+    $("shared-q")?.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(showList, 300);
+    });
+    window.addEventListener("hashchange", openFromHash);
+    openFromHash();
   });
 })();
