@@ -133,6 +133,15 @@ restarts its clock.
   are remembered in that browser for the "Only mine" filter. Anyone can also
   search the gallery by text (title, PDB ID, candidate name, vector, result id).
   Losing the cookie only loses the "Only mine" shortcut, not the result.
+- **Naming.** A design is titled `<PDB ID> - <date time UTC> - session <label>`
+  (for example `1ZVH - 2026-10-20 11:39 UTC - session 3fa9c1`); a construct is
+  `<candidate> in <vector> - <date time UTC> - session <label>`. The label is a
+  one-way hash of the session id: the session id itself is the cookie, so it is
+  never shown, but the same session always gets the same label. A visitor sees
+  their label in the gallery and by hovering the quota badge, and can search it
+  to list everything made in that browser. The time is part of the name because
+  one session can make several designs of one target on the same day. Target
+  analyses are per PDB ID (not per session) and keep the structure's title.
 - **A shared design can be continued** ("Continue in my workspace"): its
   structures are copied into the visitor's own workspace and open in
   Screening and Construct. Re-scoring is not available for imported designs.
@@ -226,7 +235,7 @@ tools image:
   quota is charged at start (2 of 10 for a 2-backbone job).
 - Request validation, CSRF/cross-origin refusal, path confinement, quota, queue
   order, queue-full, refund rules, session expiry, and the shared-results store
-  (7-day expiry on each result's own clock, sweep, file confinement): 64
+  (7-day expiry on each result's own clock, sweep, file confinement): 66
   JavaScript and 21 Python tests (`npm test`), no Docker needed. The queue,
   quota and store tests were checked by breaking the code on purpose and
   confirming they fail.

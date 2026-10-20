@@ -273,6 +273,7 @@
     const badge = document.getElementById("quota-badge");
     if (badge) {
       badge.textContent = `Backbones left: ${l.remaining} / ${l.budget}`;
+      badge.title = `Session ${l.sessionLabel}: results made here are named with this label.`;
       badge.className = l.remaining === 0 ? "badge badge-error" : "badge badge-muted";
     }
     const run = document.getElementById("btn-run-pipeline");

@@ -171,19 +171,38 @@ test("search matches every word across title, ids, kind and extra words; ids nar
   assert.deepEqual(store.list({ ids: [] }), [], "an empty personal list shows nothing, not everything");
 });
 
-test("designs of the same target get distinct, readable names", () => {
+test("results are named by PDB id, date and session label", () => {
   const { store } = setup();
   const sess = fs.mkdtempSync(path.join(os.tmpdir(), "nbsess-"));
   const mk = (id, pdbId, hot) => ({ id, params: { pdbId, designLoops: "H1:7,H2:6,H3:9", hotspotResidues: hot, numDesigns: 1, designsPerBackbone: 1, temperature: 0.2 }, result: { candidates: [] } });
-  publishDesign(store, sess, mk("j1", "1ZVH", [50]));
-  publishDesign(store, sess, mk("j2", "1ZVH", [50, 52]));
-  publishDesign(store, sess, mk("j3", "2Z1P", [9]));
-  publishDesign(store, sess, mk("j4", "1ZVH", [1, 2, 3, 4, 5, 6, 7, 8]));
-  const title = (id) => store.getMeta(id).title;
-  assert.equal(title("design-j1"), "1ZVH design #1 (hotspots 50; H1:7,H2:6,H3:9)");
-  assert.equal(title("design-j2"), "1ZVH design #2 (hotspots 50, 52; H1:7,H2:6,H3:9)");
-  assert.match(title("design-j3"), /^2Z1P design #1 /, "numbering is per target");
-  assert.match(title("design-j4"), /^1ZVH design #3 \(hotspots 1, 2, 3, 4, 5, 6, \.\.\.;/);
-  assert.deepEqual(store.list({ pdbId: "1ZVH" }).map((m) => m.id.slice(7)).sort(), ["j1", "j2", "j4"]);
-  assert.deepEqual(store.list({ q: "1zvh hotspots 52" }).map((m) => m.id), ["design-j2"]);
+  const t = Date.UTC(2026, 9, 20, 11, 39, 30);
+  publishDesign(store, sess, mk("j1", "1ZVH", [50]), "3fa9c1", t);
+  publishDesign(store, sess, mk("j2", "1ZVH", [50, 52]), "3fa9c1", t + 5 * 60_000);
+  publishDesign(store, sess, mk("j3", "2Z1P", [9]), "b00b1e", t);
+  assert.equal(store.getMeta("design-j1").title, "1ZVH - 2026-10-20 11:39 UTC - session 3fa9c1");
+  assert.equal(store.getMeta("design-j2").title, "1ZVH - 2026-10-20 11:44 UTC - session 3fa9c1", "same target, same session, same day: the time tells them apart");
+  assert.deepEqual(store.list({ q: "3fa9c1" }, t + 1).map((m) => m.id).sort(), ["design-j1", "design-j2"], "a session label finds that session's results");
+  assert.deepEqual(store.list({ q: "2026-10-20 1zvh" }, t + 1).map((m) => m.id).sort(), ["design-j1", "design-j2"]);
+  assert.deepEqual(store.list({ q: "hotspot 52" }, t + 1).map((m) => m.id), ["design-j2"]);
+  assert.deepEqual(store.getMeta("design-j1").summary.hotspots, [50]);
+});
+
+test("a construct is named with its date and session label too", () => {
+  const { store } = setup();
+  const sess = fs.mkdtempSync(path.join(os.tmpdir(), "nbsess-"));
+  fs.mkdirSync(path.join(sess, "output"));
+  fs.writeFileSync(path.join(sess, "output", "c.fasta"), ">c\nATG\n");
+  const t = Date.UTC(2026, 9, 20, 8, 5);
+  publishConstruct(store, sess, { candidateId: "d_0", vector: "pET-28a(+)" }, { fastaPath: path.join(sess, "output", "c.fasta") }, "n1", "3fa9c1", t);
+  assert.equal(store.getMeta("construct-n1").title, "d_0 in pET-28a(+) - 2026-10-20 08:05 UTC - session 3fa9c1");
+});
+
+test("the public session label is one-way and never contains the session id", () => {
+  const { sessionLabel } = require("../server/sessions.js");
+  const sid = "0123456789abcdef0123456789abcdef";
+  const l = sessionLabel(sid);
+  assert.match(l, /^[0-9a-f]{6}$/);
+  assert.equal(l, sessionLabel(sid), "stable");
+  assert.notEqual(l, sessionLabel("f123456789abcdef0123456789abcdef"));
+  assert.ok(!sid.includes(l) && !sid.startsWith(l), "not a slice of the id");
 });

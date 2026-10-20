@@ -6,7 +6,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const config = require("./config");
-const { Sessions, dirSize } = require("./sessions");
+const { Sessions, dirSize, sessionLabel } = require("./sessions");
 const { Runner, HttpError } = require("./runner");
 const { validate, ValidationError, LOCAL_CHANNELS, QUEUED_CHANNELS } = require("./validate");
 const { Store, ID } = require("./store");
@@ -21,7 +21,7 @@ const store = new Store(config);
 runner.onDone = (job) => {
   const out = {};
   try {
-    out.resultId = publishDesign(store, job.session.dir, job).id;
+    out.resultId = publishDesign(store, job.session.dir, job, sessionLabel(job.session.id)).id;
   } catch (e) {
     console.error(`Could not publish design ${job.id}: ${e.message}`);
   }
@@ -185,6 +185,7 @@ function localChannel(channel, session) {
 
 function limitsFor(session) {
   return {
+    sessionLabel: sessionLabel(session.id),
     ...runner.jobsFor(session),
     maxBackbones: config.limits.maxBackbones,
     maxSeqs: config.limits.maxSeqs,
@@ -303,7 +304,7 @@ function publishLightResult(session, channel, args, value) {
     } else if (channel === "run-interpro") {
       publishTarget(store, args[0].pdbId, { domains: value.domains });
     } else if (channel === "build-plasmid") {
-      meta = publishConstruct(store, session.dir, args[0], value, require("crypto").randomBytes(4).toString("hex"));
+      meta = publishConstruct(store, session.dir, args[0], value, require("crypto").randomBytes(4).toString("hex"), sessionLabel(session.id));
     }
     return meta;
   } catch (e) {

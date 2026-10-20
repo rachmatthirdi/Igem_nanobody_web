@@ -61,21 +61,18 @@ function publishTarget(store, pdbId, patch) {
 }
 
 // ---- Design ------------------------------------------------------------------
-// Several designs of the same target are common, so the name says which one:
-//   1ZVH design #3 (hotspots 50, 52; H1:7,H2:6,H3:9)
-// The number is one more than the highest among that target's designs still
-// shown. When older ones expire it can start over, which is why the produced
-// time and the result id are shown beside it.
-function designTitle(store, p) {
-  const taken = store
-    .list({ kind: "design", pdbId: p.pdbId, limit: 100 })
-    .map((m) => Number(/ #(\d+) /.exec(m.title)?.[1]) || 0);
-  const n = Math.max(0, ...taken) + 1;
-  const hs = p.hotspotResidues;
-  const shown = hs.slice(0, 6).join(", ") + (hs.length > 6 ? ", ..." : "");
-  return `${p.pdbId} design #${n} (hotspots ${shown}; ${p.designLoops})`;
+// Results are named by what, when and who:
+//   1ZVH - 2026-10-20 11:39 UTC - session 3fa9c1
+// `label` is the session's public label (see sessionLabel), never its id. The
+// time is included because one session can make several designs of one target
+// on the same day.
+function stamp(now) {
+  return `${new Date(now).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
-function publishDesign(store, sessionDir, job) {
+function designTitle(p, label, now) {
+  return `${p.pdbId} - ${stamp(now)} - session ${label}`;
+}
+function publishDesign(store, sessionDir, job, label = "------", now = Date.now()) {
   const p = job.params;
   const files = {};
   const candidates = [];
@@ -101,10 +98,10 @@ function publishDesign(store, sessionDir, job) {
   }
   return store.put(`design-${job.id}`, {
     kind: "design",
-    title: designTitle(store, p),
+    title: designTitle(p, label, now),
     pdbId: p.pdbId,
-    summary: { candidates: candidates.length, backbones: p.numDesigns },
-    search: `${candidates.map((c) => c.id).join(" ")} hotspot ${p.hotspotResidues.join(" ")}`,
+    summary: { candidates: candidates.length, backbones: p.numDesigns, hotspots: p.hotspotResidues.slice(0, 20), session: label },
+    search: `${candidates.map((c) => c.id).join(" ")} hotspot ${p.hotspotResidues.join(" ")} session ${label} ${p.designLoops}`,
     data: {
       params: {
         pdbId: p.pdbId,
@@ -121,14 +118,14 @@ function publishDesign(store, sessionDir, job) {
 }
 
 // ---- Construct ---------------------------------------------------------------
-function publishConstruct(store, sessionDir, params, result, nonce) {
+function publishConstruct(store, sessionDir, params, result, nonce, label = "------", now = Date.now()) {
   const fasta = readInside(sessionDir, result.fastaPath, 200_000);
   return store.put(`construct-${nonce}`, {
     kind: "construct",
-    title: `${params.candidateId} in ${params.vector}`,
+    title: `${params.candidateId} in ${params.vector} - ${stamp(now)} - session ${label}`,
     pdbId: null,
-    summary: { lengthBp: num(result.lengthBp), vector: params.vector },
-    search: `${params.candidateId} ${params.vector}${params.includePelb ? " pelb" : ""}`,
+    summary: { lengthBp: num(result.lengthBp), vector: params.vector, session: label },
+    search: `${params.candidateId} ${params.vector}${params.includePelb ? " pelb" : ""} session ${label}`,
     data: {
       candidateId: params.candidateId,
       vector: params.vector,

@@ -136,6 +136,13 @@ class Sessions {
   }
 }
 
+// A short public name for a session, shown in result titles so a visitor's
+// results can be grouped and searched. It is a one-way hash: the session id
+// itself is the cookie, i.e. a credential, and must never be shown.
+function sessionLabel(sid) {
+  return crypto.createHash("sha256").update(`label:${sid}`).digest("hex").slice(0, 6);
+}
+
 // Bytes under dir, stopping early once `cap` is passed (we only need to know
 // whether the limit is exceeded).
 function dirSize(dir, cap = Infinity) {
@@ -161,4 +168,4 @@ function dirSize(dir, cap = Infinity) {
   return total;
 }
 
-module.exports = { Sessions, Session, dirSize, SID };
+module.exports = { Sessions, Session, dirSize, sessionLabel, SID };

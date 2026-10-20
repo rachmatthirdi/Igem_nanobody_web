@@ -91,7 +91,8 @@
   function summaryText(m) {
     const s = m.summary || {};
     if (m.kind === "target") return `${s.residues ?? 0} residues, ${s.epitopeResidues ?? "-"} predicted epitope, ${s.domains ?? "-"} domains`;
-    if (m.kind === "design") return `${s.candidates ?? 0} candidates from ${s.backbones ?? "?"} backbone(s)`;
+    if (m.kind === "design")
+      return `${s.candidates ?? 0} candidates from ${s.backbones ?? "?"} backbone(s); hotspots ${(s.hotspots || []).join(", ")}`;
     return `${s.lengthBp ?? "?"} bp, ${s.vector ?? ""}`;
   }
 
@@ -219,6 +220,8 @@
 
   // ---- wiring --------------------------------------------------------------------
   function open(id) {
+    const label = window.WebLimits?.get()?.sessionLabel;
+    $("shared-session").textContent = label ? `Your session label is ${label}. Search for it to find the results made in this browser.` : "";
     window.A11y.openModal($("shared-modal"), { onClose: () => history.replaceState(null, "", location.pathname + location.search) });
     if (typeof id === "string") showDetail(id);
     else showList();
