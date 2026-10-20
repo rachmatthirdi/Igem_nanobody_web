@@ -226,7 +226,7 @@ tools image:
   quota is charged at start (2 of 10 for a 2-backbone job).
 - Request validation, CSRF/cross-origin refusal, path confinement, quota, queue
   order, queue-full, refund rules, session expiry, and the shared-results store
-  (7-day expiry on each result's own clock, sweep, file confinement): 63
+  (7-day expiry on each result's own clock, sweep, file confinement): 64
   JavaScript and 21 Python tests (`npm test`), no Docker needed. The queue,
   quota and store tests were checked by breaking the code on purpose and
   confirming they fail.

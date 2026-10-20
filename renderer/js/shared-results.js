@@ -70,12 +70,13 @@
       }
       host.replaceChildren(
         table(
-          ["Type", "Name", "PDB", "Details", "Result id", "Expires", ""],
+          ["Type", "Name", "PDB", "Details", "Produced", "Result id", "Expires", ""],
           entries.map((m) => [
             KIND[m.kind] || m.kind,
             m.title,
             m.pdbId || "-",
             summaryText(m),
+            new Date(m.createdAt).toLocaleString(),
             m.id,
             timeLeft(m.expiresAt),
             el("button", { class: "btn btn-secondary", onclick: () => showDetail(m.id) }, "Open"),

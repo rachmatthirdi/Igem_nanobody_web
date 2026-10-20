@@ -170,3 +170,20 @@ test("search matches every word across title, ids, kind and extra words; ids nar
   assert.deepEqual(store.list({ ids: ["design-a1", "construct-c3", "design-zzz"] }).map((m) => m.id), ["construct-c3", "design-a1"]);
   assert.deepEqual(store.list({ ids: [] }), [], "an empty personal list shows nothing, not everything");
 });
+
+test("designs of the same target get distinct, readable names", () => {
+  const { store } = setup();
+  const sess = fs.mkdtempSync(path.join(os.tmpdir(), "nbsess-"));
+  const mk = (id, pdbId, hot) => ({ id, params: { pdbId, designLoops: "H1:7,H2:6,H3:9", hotspotResidues: hot, numDesigns: 1, designsPerBackbone: 1, temperature: 0.2 }, result: { candidates: [] } });
+  publishDesign(store, sess, mk("j1", "1ZVH", [50]));
+  publishDesign(store, sess, mk("j2", "1ZVH", [50, 52]));
+  publishDesign(store, sess, mk("j3", "2Z1P", [9]));
+  publishDesign(store, sess, mk("j4", "1ZVH", [1, 2, 3, 4, 5, 6, 7, 8]));
+  const title = (id) => store.getMeta(id).title;
+  assert.equal(title("design-j1"), "1ZVH design #1 (hotspots 50; H1:7,H2:6,H3:9)");
+  assert.equal(title("design-j2"), "1ZVH design #2 (hotspots 50, 52; H1:7,H2:6,H3:9)");
+  assert.match(title("design-j3"), /^2Z1P design #1 /, "numbering is per target");
+  assert.match(title("design-j4"), /^1ZVH design #3 \(hotspots 1, 2, 3, 4, 5, 6, \.\.\.;/);
+  assert.deepEqual(store.list({ pdbId: "1ZVH" }).map((m) => m.id.slice(7)).sort(), ["j1", "j2", "j4"]);
+  assert.deepEqual(store.list({ q: "1zvh hotspots 52" }).map((m) => m.id), ["design-j2"]);
+});

@@ -61,6 +61,20 @@ function publishTarget(store, pdbId, patch) {
 }
 
 // ---- Design ------------------------------------------------------------------
+// Several designs of the same target are common, so the name says which one:
+//   1ZVH design #3 (hotspots 50, 52; H1:7,H2:6,H3:9)
+// The number is one more than the highest among that target's designs still
+// shown. When older ones expire it can start over, which is why the produced
+// time and the result id are shown beside it.
+function designTitle(store, p) {
+  const taken = store
+    .list({ kind: "design", pdbId: p.pdbId, limit: 100 })
+    .map((m) => Number(/ #(\d+) /.exec(m.title)?.[1]) || 0);
+  const n = Math.max(0, ...taken) + 1;
+  const hs = p.hotspotResidues;
+  const shown = hs.slice(0, 6).join(", ") + (hs.length > 6 ? ", ..." : "");
+  return `${p.pdbId} design #${n} (hotspots ${shown}; ${p.designLoops})`;
+}
 function publishDesign(store, sessionDir, job) {
   const p = job.params;
   const files = {};
@@ -87,7 +101,7 @@ function publishDesign(store, sessionDir, job) {
   }
   return store.put(`design-${job.id}`, {
     kind: "design",
-    title: `${p.pdbId} nanobody design`,
+    title: designTitle(store, p),
     pdbId: p.pdbId,
     summary: { candidates: candidates.length, backbones: p.numDesigns },
     search: `${candidates.map((c) => c.id).join(" ")} hotspot ${p.hotspotResidues.join(" ")}`,
