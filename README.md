@@ -74,15 +74,21 @@ logic only. They do not start Docker, the GPU stages or the browser interface.
 
 ## Project structure
 
+One application: the same Node process serves the **frontend** (`renderer/`)
+and the **backend** (`server/`). The folder names come from the desktop app this
+was split from. Details: [ARCHITECTURE.md](ARCHITECTURE.md); HTTP interface:
+[API.md](API.md).
+
 ```text
-server/        HTTP server, sessions, queue, validation, engine (orchestration)
-renderer/      the browser interface (plain JS); js/web-api.js replaces Electron's preload
-python/        the tool scripts run inside the tools image
-docker/        Dockerfile for the tools image (RFdiffusion, ProteinMPNN, RF2, DiscoTope, …)
-Dockerfile     the web server image
+renderer/      FRONTEND: the browser interface (plain JS, no build step); js/web-api.js is its only link to the backend
+server/        BACKEND: HTTP server, sessions, queue, validation, shared results, and engine.js (starts the tools)
+python/        tool scripts run inside the tools image
+docker/        Dockerfile of the tools image (RFdiffusion, ProteinMPNN, RF2, DiscoTope, ...)
+Dockerfile     the web application image
 docker-compose.yml, Caddyfile, .env.example
-tests/         unit tests
-scripts/       prewarm.js (download models once)
+tests/         unit tests (npm test)
+scripts/       prewarm.js (download models once), nbtool.sh (run a python/ script in the tools image)
+ARCHITECTURE.md, API.md, DEPLOY.md
 ```
 
 ## License
