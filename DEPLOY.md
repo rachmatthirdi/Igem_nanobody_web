@@ -154,10 +154,26 @@ restarts its clock.
 | Stop everything a runaway session started | `docker kill $(docker ps -q --filter label=nb.session=<id>)` |
 | Free the GPU right now | `docker kill $(docker ps -q --filter label=nb.session)` |
 
-The queue lives in memory. A restart ends queued and running jobs; their users
-see an error and are not charged for work that produced nothing. Saved projects
-and finished results are files in `NB_DATA` and survive restarts. Back up
-`NB_DATA/sessions` if you want to keep them; `NB_DATA/shared` can be rebuilt.
+The queue lives in memory, but every job also has a record in its session's
+`jobs/` folder. A restart ends queued and running jobs: at start-up they are
+marked failed with a message ("The server restarted while this job was
+running"), and the backbones are refunded if none had been made. Finished jobs,
+saved projects and shared results are files in `NB_DATA` and survive restarts.
+Back up `NB_DATA/sessions` and `NB_DATA/shared/results` if you want to keep
+them; the rest of `NB_DATA/shared` (model caches) can be rebuilt.
+
+### Closing the tab or reloading
+
+A design keeps running on the server whether or not the page is open.
+
+- **Reopened in the same browser** (the session cookie lasts `NB_SESSION_TTL_HOURS`):
+  the page asks the server what the session has. A job still running is
+  followed again (badges, live console, Stop). A job that finished while the
+  page was closed is loaded into the Screening step. Either way the server has
+  already saved it as a project ("Open project") when the job ended.
+- **Cookie lost or another device:** the session cannot be recovered (there are
+  no accounts), but the finished design is in the shared gallery for 7 days; its
+  id and link were shown in the console, and it can be found by search.
 
 ## 5. Security: read this before going public
 
@@ -210,7 +226,7 @@ tools image:
   quota is charged at start (2 of 10 for a 2-backbone job).
 - Request validation, CSRF/cross-origin refusal, path confinement, quota, queue
   order, queue-full, refund rules, session expiry, and the shared-results store
-  (7-day expiry on each result's own clock, sweep, file confinement): 54
+  (7-day expiry on each result's own clock, sweep, file confinement): 63
   JavaScript and 21 Python tests (`npm test`), no Docker needed. The queue,
   quota and store tests were checked by breaking the code on purpose and
   confirming they fail.
@@ -224,6 +240,11 @@ tools image:
   searches found the right entries, a link opened its result directly, and two
   sessions imported the same design into separate workspaces; the candidates
   then showed in Screening. Bad or expired ids were refused (400/404).
+- Closing and reopening the page: a job running on the server was followed
+  again with the right badges, Run disabled and Stop working; a job finished
+  while away was loaded once and not again after a reload; after the server was
+  killed during a job, the job was marked failed with a clear message and the
+  backbones refunded (5 used -> 2).
 - Shared results in a real browser: a target analysis and a construct produced
   through the server appeared for a visitor with no session, opened with their
   tables and FASTA, and a result disappeared from the list after its (shortened)
@@ -232,6 +253,11 @@ tools image:
 
 **Not checked, because it needs your server:**
 
+- **A real job finishing while the page is closed.** The "finished while you
+  were away" path was tested with a job record written to disk by hand, and
+  the "still running" path with a real RFdiffusion container; a real job that
+  actually completes (and so saves its project and publishes itself) was not
+  seen.
 - **Publishing a finished design to the gallery from a real job**, and the 3D
   preview in the gallery (the test browser had no WebGL).
 - **A design run to completion.** Only the start and the stop were exercised;

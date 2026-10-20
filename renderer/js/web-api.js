@@ -139,16 +139,22 @@
   async function runDesign(params, onUpdate) {
     const first = await post("run-design", [params]);
     if (onUpdate) onUpdate(first);
+    return trackJob(first.id, onUpdate);
+  }
+
+  // Polls a job until it ends and resolves with its result (plus the ids the
+  // page needs). Also used to follow a job found on the server after a reload.
+  async function trackJob(id, onUpdate) {
     let failures = 0;
     for (;;) {
       await sleep(2000);
       let view;
       try {
-        view = (await request(`/api/job/${first.id}`)) ;
+        view = await request(`/api/job/${id}`);
         failures = 0;
       } catch (e) {
         // A job outlives a dropped connection; give the network a minute.
-        if (e.status === 404) throw new Error("The server no longer knows this job (it may have restarted).");
+        if (e.status === 404) throw new Error("The server no longer knows this job.");
         if (++failures > 30) throw e;
         continue;
       }
@@ -156,7 +162,7 @@
       if (view.status === "done") {
         refreshLimits();
         remember(view.resultId);
-        return view.result;
+        return { ...view.result, projectId: view.projectId, jobId: view.id };
       }
       if (view.status === "error" || view.status === "cancelled") {
         refreshLimits();
@@ -207,6 +213,7 @@
 
     getScaffoldSequence: call("get-scaffold-sequence"),
     runDesign,
+    trackJob,
     beginPipeline: call("begin-pipeline"),
     cancelPipeline: call("cancel-pipeline"),
 

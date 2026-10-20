@@ -11,11 +11,27 @@ const { Runner, HttpError } = require("./runner");
 const { validate, ValidationError, LOCAL_CHANNELS, QUEUED_CHANNELS } = require("./validate");
 const { Store, ID } = require("./store");
 const { publishTarget, publishDesign, publishConstruct } = require("./publish");
+const { saveProject } = require("./projects");
 
 const sessions = new Sessions(config);
 const runner = new Runner(config, sessions);
 const store = new Store(config);
-runner.onDone = (job) => publishDesign(store, job.session.dir, job);
+// A finished design goes to the shared gallery and is saved as a project in the
+// owner's workspace; either may fail without hurting the other.
+runner.onDone = (job) => {
+  const out = {};
+  try {
+    out.resultId = publishDesign(store, job.session.dir, job).id;
+  } catch (e) {
+    console.error(`Could not publish design ${job.id}: ${e.message}`);
+  }
+  try {
+    out.projectId = saveProject(config.appDir, job.session, job);
+  } catch (e) {
+    console.error(`Could not save project for design ${job.id}: ${e.message}`);
+  }
+  return out;
+};
 const RENDERER = path.join(config.appDir, "renderer");
 let scaffoldCache = null;
 
@@ -169,6 +185,7 @@ function localChannel(channel, session) {
 
 function limitsFor(session) {
   return {
+    ...runner.jobsFor(session),
     maxBackbones: config.limits.maxBackbones,
     maxSeqs: config.limits.maxSeqs,
     budget: config.backboneBudget,
@@ -212,9 +229,9 @@ async function handleApi(req, res, url) {
 
   let m = /^\/api\/job\/([a-f0-9]{16})$/.exec(url.pathname);
   if (req.method === "GET" && m) {
-    const job = runner.jobs.get(m[1]);
-    if (!job || job.session !== session) throw new HttpError(404, "No such job.");
-    return json(res, 200, runner.view(job));
+    const view = runner.getJob(session, m[1]);
+    if (!view) throw new HttpError(404, "No such job.");
+    return json(res, 200, view);
   }
 
   m = /^\/api\/download\/([\w.-]{1,100})$/.exec(url.pathname);

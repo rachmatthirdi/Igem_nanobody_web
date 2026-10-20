@@ -174,11 +174,14 @@ class Runner {
       child: null,
       cancelRequested: false,
       // Called for each stage-progress event the job produces.
+      stages: {}, // stage name -> last status, so a page opened later can show them
       observe(p) {
         if (p.stage === "rfdiffusion" && p.status === "done") this.producedBackbones = true;
+        if (typeof p.stage === "string" && typeof p.status === "string") this.stages[p.stage] = p.status;
       },
     };
     session.meta.backbonesUsed += job.charged;
+    session.meta.lastJobId = job.id;
     session.save();
     session.job = job;
     this.jobs.set(job.id, job);
@@ -189,7 +192,55 @@ class Runner {
   }
 
   announce(job) {
+    this.persist(job);
     job.session.emit("job", this.view(job));
+  }
+
+  // One file per job in the session's workspace, so a job can still be looked
+  // up after the in-memory copy is gone or the server restarted.
+  persist(job) {
+    try {
+      const dir = path.join(job.session.dir, "jobs");
+      fs.mkdirSync(dir, { recursive: true });
+      const rec = {
+        id: job.id,
+        status: job.status,
+        createdAt: job.createdAt,
+        startedAt: job.startedAt,
+        endedAt: job.endedAt,
+        params: job.params,
+        result: job.result,
+        error: job.error,
+        resultId: job.resultId,
+        projectId: job.projectId || null,
+        charged: job.charged,
+        producedBackbones: job.producedBackbones,
+      };
+      fs.writeFileSync(path.join(dir, `${job.id}.json`), JSON.stringify(rec));
+    } catch (e) {
+      console.error(`Could not save job ${job.id}: ${e.message}`);
+    }
+  }
+
+  // A job of this session, from memory or from its file; null if it is not theirs.
+  getJob(session, id) {
+    const live = this.jobs.get(id);
+    if (live) return live.session === session ? this.view(live) : null;
+    if (!/^[a-f0-9]{16}$/.test(id)) return null;
+    try {
+      const rec = JSON.parse(fs.readFileSync(path.join(session.dir, "jobs", `${id}.json`), "utf8"));
+      return this.view({ ...rec, session });
+    } catch {
+      return null;
+    }
+  }
+
+  // What a freshly opened page needs: the running job, and the last finished one.
+  jobsFor(session) {
+    const active = session.job ? this.view(session.job) : null;
+    const lastId = session.meta.lastJobId;
+    const last = lastId && (!session.job || session.job.id !== lastId) ? this.getJob(session, lastId) : null;
+    return { activeJob: active, lastJob: last };
   }
 
   view(job) {
@@ -200,6 +251,9 @@ class Runner {
       queueLength: this.queue.length,
       createdAt: job.createdAt,
       startedAt: job.startedAt,
+      params: job.params,
+      projectId: job.projectId || null,
+      stages: job.stages || {},
     };
     if (job.status === "done") {
       v.result = job.result;
@@ -241,7 +295,11 @@ class Runner {
       });
       job.status = "done";
       try {
-        if (this.onDone) job.resultId = this.onDone(job)?.id || null;
+        if (this.onDone) {
+          const out = this.onDone(job) || {};
+          job.resultId = out.resultId || null;
+          job.projectId = out.projectId || null;
+        }
       } catch (e) {
         console.error(`Could not publish design ${job.id}: ${e.message}`);
       }
@@ -332,6 +390,8 @@ class Runner {
       return;
     }
 
+    this.recoverJobs(log);
+
     const orphans = this.killContainers(null);
     if (orphans) log(`Stopped ${orphans} container(s) left over from a previous run.`);
 
@@ -359,6 +419,38 @@ class Runner {
     }
     this.ready = true;
     this.pump();
+  }
+
+  // A job that was queued or running when the server stopped will never finish.
+  // Mark it so its owner sees why, and refund it if no backbone had been made.
+  recoverJobs(log = console.log) {
+    let n = 0;
+    for (const sid of fs.readdirSync(this.sessions.root)) {
+      const session = this.sessions.find(sid);
+      if (!session) continue;
+      const dir = path.join(session.dir, "jobs");
+      if (!fs.existsSync(dir)) continue;
+      for (const f of fs.readdirSync(dir)) {
+        const file = path.join(dir, f);
+        let rec;
+        try {
+          rec = JSON.parse(fs.readFileSync(file, "utf8"));
+        } catch {
+          continue;
+        }
+        if (rec.status !== "queued" && rec.status !== "running") continue;
+        rec.status = "error";
+        rec.error = "The server restarted while this job was running. Please run it again.";
+        rec.endedAt = Date.now();
+        if (!rec.producedBackbones) {
+          session.meta.backbonesUsed = Math.max(0, session.meta.backbonesUsed - (rec.charged || 0));
+          session.save();
+        }
+        fs.writeFileSync(file, JSON.stringify(rec));
+        n += 1;
+      }
+    }
+    if (n) log(`Marked ${n} interrupted design job(s) as failed.`);
   }
 
   // A workspace for work that belongs to no user (start-up checks).

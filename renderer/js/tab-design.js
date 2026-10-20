@@ -308,94 +308,79 @@
     const cfg = buildScaffoldConfig();
     if (!cfg) return;
     window.AppState.scaffoldConfig = cfg;
-    // Clear any cancel left over from the previous run. The main process keeps
-    // that flag set between stages on purpose, so starting a run is the only
-    // thing allowed to reset it.
     await window.api.beginPipeline();
+    const params = {
+      targetPdbPath: window.AppState.chainAPath,
+      pdbId: window.AppState.pdbId,
+      designLoops: cfg.cdr_config,
+      hotspotResidues: window.AppState.hotspotResidues,
+      numDesigns: cfg.backbone_number,
+      designsPerBackbone: cfg.mpnn_designs,
+      temperature: cfg.mpnn_temperature,
+      numRecycles: 10,
+      cdr: window.AppState.scaffold.cdr,
+    };
+    await followRun(() => window.api.runDesign(params, showJobStatus), params);
+  }
+
+  // ---- following a design job (new run, or one found on the server) ----------------
+  const STAGE_BADGE = {
+    rfdiffusion: ["badge-rfdiffusion"],
+    proteinmpnn: ["badge-proteinmpnn"],
+    "rf2-weights": ["badge-rf2-weights"],
+    rf2: ["badge-rf2"],
+  };
+
+  // Waiting behind other users' designs on the shared GPU.
+  function showJobStatus(job) {
+    if (job.status === "running") {
+      // Built from the job's own record, so it is right even for a page that
+      // opened after the stages had started.
+      for (const [stage, ids] of Object.entries(STAGE_BADGE)) {
+        const st = (job.stages || {})[stage];
+        for (const id of ids) {
+          if (st === "done") setBadge(id, "Done", "badge-ok");
+          else if (st === "running") setBadge(id, "Running...", "badge-running");
+          else if (st === "error") setBadge(id, "Failed", "badge-error");
+          else setBadge(id, "Waiting", "badge-muted");
+        }
+      }
+    }
+    if (job.status === "queued") {
+      const where = job.position
+        ? `Queued (position ${job.position} of ${job.queueLength})`
+        : "Queued...";
+      PIPELINE_BADGES.forEach((id) => setBadge(id, where, "badge-running"));
+    }
+  }
+
+  // Runs `start()` (which resolves with the finished job's result) while keeping
+  // the buttons, badges and console in step, then hands the result on.
+  // `apply` says whether the result may replace what is on the page.
+  async function followRun(start, params, { apply = true } = {}) {
     pipelineRunning = true;
     window.Notice.clear($("design-notice"));
     $("btn-run-pipeline").disabled = true;
     $("btn-stop-pipeline").disabled = false;
-
-    // Badges follow the server's stage-progress events: the four stages now run
-    // as one queued job instead of four calls from this page.
-    const STAGE_BADGE = {
-      rfdiffusion: ["badge-rfdiffusion"],
-      proteinmpnn: ["badge-proteinmpnn"],
-      "rf2-weights": ["badge-rf2-weights"],
-      rf2: ["badge-rf2"],
-    };
+    // Badges follow the server's stage-progress events: the four stages run as
+    // one queued job on the server, not as four calls from this page.
     const stopStageEvents = window.api.onStageProgress((p) => {
       for (const id of STAGE_BADGE[p.stage] || []) {
         if (p.status === "running") setBadge(id, "Running...", "badge-running");
         else if (p.status === "done") setBadge(id, "Done", "badge-ok");
       }
     });
-
     try {
       PIPELINE_BADGES.forEach((id) => setBadge(id, "Queued...", "badge-running"));
-      const run = await window.api.runDesign(
-        {
-          targetPdbPath: window.AppState.chainAPath,
-          pdbId: window.AppState.pdbId,
-          designLoops: cfg.cdr_config,
-          hotspotResidues: window.AppState.hotspotResidues,
-          numDesigns: cfg.backbone_number,
-          designsPerBackbone: cfg.mpnn_designs,
-          temperature: cfg.mpnn_temperature,
-          numRecycles: 10,
-          cdr: window.AppState.scaffold.cdr,
-        },
-        (job) => {
-          // Waiting behind other users' designs on the shared GPU.
-          if (job.status === "queued") {
-            const where = job.position
-              ? `Queued (position ${job.position} of ${job.queueLength})`
-              : "Queued...";
-            PIPELINE_BADGES.forEach((id) => setBadge(id, where, "badge-running"));
-          }
-        },
-      );
-      window.AppState.backbones = run.backbones;
-      window.AppState.backboneDir = run.backboneDir;
-      window.AppState.targetTPath = run.targetTPath;
-      window.AppState.seqDir = run.seqDir;
-      window.AppState.rf2OutDir = run.rf2OutDir;
-      setBadge(
-        "badge-rfdiffusion",
-        `Done (${run.backbones.length} backbones)`,
-        "badge-ok",
-      );
-      setBadge("badge-proteinmpnn", "Done", "badge-ok");
-      setBadge("badge-rf2-weights", "Done", "badge-ok");
-      setBadge("badge-rf2", "Done", "badge-ok");
-      window.AppState.candidates = run.candidates || [];
-      window.ConsolePanel.log(
-        "ok",
-        `${window.AppState.candidates.length} candidates ready for screening.`,
-        "design",
-      );
-      if (window.TabScreening) window.TabScreening.refresh();
-
-      // Auto-save so a finished design run survives even if the user
-      // forgets to click "Save Project" - reuses the same project id on a
-      // second run in this session instead of piling up duplicates.
-      try {
-        const state = window.StateUtils.serialize();
-        const res = await window.api.saveProject(state);
-        window.AppState.id = res.id;
+      const run = await start();
+      markApplied(run.jobId);
+      if (apply) await finishRun(run, params);
+      else
         window.ConsolePanel.log(
-          "info",
-          `Design results auto-saved (project ${res.id}).`,
+          "ok",
+          "A design finished. It was saved as a project: open it from the folder icon in the header.",
           "design",
         );
-      } catch (e) {
-        window.ConsolePanel.log(
-          "warn",
-          `Auto-save failed: ${window.Messages.clean(e)}`,
-          "design",
-        );
-      }
     } catch (e) {
       const stopped = e.message === "Cancelled by user.";
       window.ConsolePanel.log(
@@ -418,6 +403,98 @@
       pipelineRunning = false;
       $("btn-run-pipeline").disabled = false;
       $("btn-stop-pipeline").disabled = true;
+    }
+  }
+
+  const APPLIED_KEY = "nb.appliedJob";
+  function wasApplied(id) {
+    try {
+      return localStorage.getItem(APPLIED_KEY) === id;
+    } catch {
+      return false;
+    }
+  }
+  function markApplied(id) {
+    try {
+      if (id) localStorage.setItem(APPLIED_KEY, id);
+    } catch {
+      // Without storage the result may be offered again on the next visit.
+    }
+  }
+
+  // Puts a finished run's results on the page, as if this page had run it.
+  async function finishRun(run, params) {
+    const S = window.AppState;
+    // A page that was closed and reopened starts empty: fill what the job knows.
+    if (!S.pdbId) S.pdbId = params.pdbId;
+    if (!S.chainAPath) S.chainAPath = params.targetPdbPath;
+    if (!S.hotspotResidues.length) S.hotspotResidues = params.hotspotResidues;
+    if (!S.scaffoldConfig)
+      S.scaffoldConfig = {
+        scaffold_name: "3DWT",
+        cdr_designed: ["H1", "H2", "H3"],
+        cdr_config: params.designLoops,
+        backbone_number: params.numDesigns,
+        mpnn_designs: params.designsPerBackbone,
+        mpnn_temperature: params.temperature,
+      };
+    S.backbones = run.backbones;
+    S.backboneDir = run.backboneDir;
+    S.targetTPath = run.targetTPath;
+    S.seqDir = run.seqDir;
+    S.rf2OutDir = run.rf2OutDir;
+    setBadge("badge-rfdiffusion", `Done (${run.backbones.length} backbones)`, "badge-ok");
+    setBadge("badge-proteinmpnn", "Done", "badge-ok");
+    setBadge("badge-rf2-weights", "Done", "badge-ok");
+    setBadge("badge-rf2", "Done", "badge-ok");
+    S.candidates = run.candidates || [];
+    window.ConsolePanel.log("ok", `${S.candidates.length} candidates ready for screening.`, "design");
+    if (window.TabScreening) window.TabScreening.refresh();
+
+    // Auto-save the full page state. The server already saved a project for
+    // this job; reusing its id makes this save replace it with the fuller one
+    // (which also holds the Target step's results) instead of adding a second.
+    try {
+      if (run.projectId) S.id = run.projectId;
+      const res = await window.api.saveProject(window.StateUtils.serialize());
+      S.id = res.id;
+      window.ConsolePanel.log("info", `Design results auto-saved (project ${res.id}).`, "design");
+    } catch (e) {
+      window.ConsolePanel.log("warn", `Auto-save failed: ${window.Messages.clean(e)}`, "design");
+    }
+  }
+
+  // On opening the page: pick up where the server says this session is. A job
+  // keeps running (and finishing) while the browser is closed.
+  async function resumeFromServer() {
+    let limits;
+    try {
+      limits = await window.api.getLimits();
+    } catch {
+      return;
+    }
+    if (pipelineRunning) return;
+    const S = window.AppState;
+    // Never replace work the user already has on the page (e.g. an opened project).
+    const untouched = !S.candidates.length && !S.pdbId;
+
+    const active = limits.activeJob;
+    if (active) {
+      window.ConsolePanel.log("info", "A design from this browser is still running. Following it.", "design");
+      showJobStatus(active);
+      await followRun(() => window.api.trackJob(active.id, showJobStatus), active.params, { apply: untouched });
+      return;
+    }
+    const last = limits.lastJob;
+    if (!last || wasApplied(last.id)) return;
+    markApplied(last.id);
+    if (last.status === "done" && untouched) {
+      await finishRun({ ...last.result, projectId: last.projectId, jobId: last.id }, last.params);
+      window.ConsolePanel.log("ok", "Your last design finished while you were away. It is loaded; open Screening.", "design");
+    } else if (last.status === "done") {
+      window.ConsolePanel.log("ok", "Your last design finished while you were away. Open it from the folder icon in the header.", "design");
+    } else if (last.status === "error") {
+      window.ConsolePanel.log("warn", `Your last design did not finish: ${last.error}`, "design");
     }
   }
 
@@ -496,6 +573,7 @@
       wireCdrRangeEditing();
       updatePipelineEta();
       $("btn-run-pipeline").addEventListener("click", runPipeline);
+      resumeFromServer();
       $("btn-stop-pipeline").addEventListener("click", async () => {
         const res = await window.api.cancelPipeline();
         // Don't disable the button here. Stop pressed between two stages kills
