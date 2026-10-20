@@ -1,0 +1,53 @@
+# CATCHERs Generator, web version.
+#
+#   cp .env.example .env      # then edit
+#   docker pull <NB_IMAGE from .env>
+#   docker compose up -d --build
+#
+# The host needs Docker and, for GPU designs, the NVIDIA driver plus the
+# NVIDIA Container Toolkit. The app container itself needs no GPU: it starts
+# the tool containers with `--gpus all` through the host's Docker socket.
+
+services:
+  app:
+    build: .
+    image: catchers-web:latest
+    restart: unless-stopped
+    environment:
+      NB_DATA: ${NB_DATA:-/srv/catchers}
+      NB_IMAGE: ${NB_IMAGE:-rachmatthirdi/igem_brawijaya@sha256:f5cc30e2a20816563ba558fb941b600f971e0f2035958d01305dee5060ac0843}
+      NB_TRUST_PROXY: "1" # the proxy below sets X-Forwarded-*
+      NB_MAX_BACKBONES: ${NB_MAX_BACKBONES:-10}
+      NB_MAX_SEQS: ${NB_MAX_SEQS:-1}
+      NB_BACKBONE_BUDGET: ${NB_BACKBONE_BUDGET:-10}
+      NB_MAX_QUEUE: ${NB_MAX_QUEUE:-5}
+      NB_LIGHT_CONCURRENCY: ${NB_LIGHT_CONCURRENCY:-3}
+      NB_JOB_TIMEOUT_MIN: ${NB_JOB_TIMEOUT_MIN:-180}
+      NB_SESSION_TTL_HOURS: ${NB_SESSION_TTL_HOURS:-72}
+      NB_SESSION_DISK_MB: ${NB_SESSION_DISK_MB:-2000}
+      NB_GPU_MODE: ${NB_GPU_MODE:-auto}
+      NB_DOCKER_RUN_ARGS: ${NB_DOCKER_RUN_ARGS:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Same path on both sides - see .env.example.
+      - ${NB_DATA:-/srv/catchers}:${NB_DATA:-/srv/catchers}
+    expose:
+      - "3000"
+    stop_grace_period: 30s
+
+  proxy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  caddy_data:

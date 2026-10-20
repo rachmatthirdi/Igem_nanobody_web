@@ -1,4 +1,4 @@
-// Tests for electron/disk-space.js, the free-space check made before the tools
+// Tests for server/disk-space.js, the free-space check made before the tools
 // image is downloaded. The file system is replaced by a fake `statfs`, so the
 // tests need no Docker and no particular amount of free disk.
 //
@@ -11,7 +11,7 @@ const {
   checkFreeSpace,
   formatGb,
   shortfallMessage,
-} = require("../electron/disk-space.js");
+} = require("../server/disk-space.js");
 
 const GB = 1024 ** 3;
 const fakeStatfs = (freeGb) => async () => ({ bavail: freeGb * 256, bsize: GB / 256 });

@@ -1,4 +1,9 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
+// Server-side execution engine. This is the former Electron main process with
+// the window, dialog and settings-file parts removed: it is loaded once per
+// request in a short-lived child process (see server/job-runner.js) so that
+// everything it keeps in module scope - ROOT, DIRS, the cancel flag, the
+// container list - belongs to exactly one user session.
+const os = require("os");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
@@ -11,24 +16,12 @@ const {
 } = require("./download");
 const { checkFreeSpace, shortfallMessage } = require("./disk-space");
 
-// On native Wayland sessions, Chromium's default wayland ozone backend can
-// segfault at startup when combined with Vulkan on some GPU/driver stacks
-// ("--ozone-platform=wayland is not compatible with Vulkan"). --ozone-platform
-// has to be a literal CLI argument - app.commandLine.appendSwitch() runs too
-// late, after ozone has already initialized - so relaunch once with it added.
-if (
-  process.platform === "linux" &&
-  (process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY) &&
-  !process.argv.includes("--ozone-platform=x11")
-) {
-  spawn(process.execPath, [...process.argv.slice(1), "--ozone-platform=x11"], {
-    stdio: "inherit",
-    env: process.env,
-  }).on("exit", (code) => process.exit(code ?? 0));
-  return;
-}
-
-const ROOT = path.join(__dirname, "..");
+// ROOT is the session's own workspace, mounted at /nbroot in every container.
+// Never the application directory: a user must not be able to name a path
+// outside their own session.
+if (!process.env.NB_ROOT || !process.env.NB_SHARED)
+  throw new Error("NB_ROOT and NB_SHARED must be set");
+const ROOT = path.resolve(process.env.NB_ROOT);
 const DIRS = {
   cachePdb: path.join(ROOT, "cache", "pdb"),
   cacheInterpro: path.join(ROOT, "cache", "interpro"),
@@ -46,7 +39,15 @@ const DIRS = {
 
 for (const dir of Object.values(DIRS)) fs.mkdirSync(dir, { recursive: true });
 
-let mainWindow = null;
+// Handlers are registered here instead of on Electron's ipcMain; the job runner
+// looks them up by channel name. Same signatures as before: (event, ...args).
+const handlers = {};
+const ipcMain = {
+  handle(channel, fn) {
+    handlers[channel] = fn;
+  },
+};
+const SESSION_ID = process.env.NB_SESSION || "";
 
 // ---------------------------------------------------------------------------
 // Platform detection (OS / WSL2) - display-only info for the System Monitor
@@ -82,13 +83,13 @@ const PLATFORM_INFO = detectPlatformInfo();
 // Settings
 // ---------------------------------------------------------------------------
 const DEFAULT_SETTINGS = {
-  installMode: "", // '' (Docker image not built yet) | 'docker' - Docker is the only execution path
-  dockerImage: "rachmatthirdi/igem_brawijaya:latest",
+  installMode: "docker", // the web service always runs the tools through Docker
+  dockerImage: process.env.NB_IMAGE || "rachmatthirdi/igem_brawijaya:latest",
   caiOrganism: "Escherichia coli general",
   gpuOverride: "auto", // 'auto' | 'on' | 'off' - manual escape hatch for when
   // auto-detection gets it wrong (e.g. nvidia-smi present but the check fails
   // for some host-specific reason, or the user wants to force CPU for testing)
-  ownershipReclaimed: false, // one-time flag: whether the root-owned leftovers
+  ownershipReclaimed: true, // web: settings are not persisted, so never run the one-time cleanup. Was: one-time flag: whether the root-owned leftovers
   // from before container runs became non-root have been handed back (see
   // ensureOwnershipReclaimed)
 };
@@ -111,7 +112,11 @@ const DOCKER_TOOL_PATHS = {
 // which also makes this the one weight file safe to skip baking into any
 // image meant for a public registry.
 const RF2_WEIGHT_URL = "https://files.ipd.uw.edu/pub/RFantibody/RF2_ab.pt";
-const RF2_WEIGHT_PATH = path.join(DIRS.cacheWeights, "RF2_ab.pt");
+// Shared across sessions (it is 281 MB and identical for everyone); the server
+// fetches it once at start-up so no user request ever waits on the download.
+const RF2_WEIGHT_PATH = process.env.NB_SHARED
+  ? path.join(process.env.NB_SHARED, "weights", "RF2_ab.pt")
+  : path.join(DIRS.cacheWeights, "RF2_ab.pt");
 
 // Retries a long-running network operation on failure. Both Docker Hub
 // pulls and the RF2 weight download have hit real, observed transient
@@ -189,34 +194,29 @@ async function ensureRf2Weights() {
 // Set once by the check-gpu handler; gates whether `--gpus all` is passed to
 // `docker run` so Docker mode doesn't hard-fail on machines without
 // nvidia-container-toolkit.
-let GPU_AVAILABLE = false;
+let GPU_AVAILABLE = process.env.NB_GPU === "1";
 
-function settingsPath() {
-  return path.join(app.getPath("userData"), "settings.json");
-}
-
+// Settings are fixed by the server's environment; a user cannot change them
+// (the image name in particular decides what `docker run` executes).
 function getSettings() {
-  try {
-    const raw = fs.readFileSync(settingsPath(), "utf8");
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+  return { ...DEFAULT_SETTINGS };
 }
 
-function saveSettingsToDisk(settings) {
-  const merged = { ...getSettings(), ...settings };
-  fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-  fs.writeFileSync(settingsPath(), JSON.stringify(merged, null, 2), "utf8");
-  return merged;
+function saveSettingsToDisk() {
+  return getSettings();
 }
 
 // ---------------------------------------------------------------------------
 // Logging / progress helpers (streamed to renderer Live Console + progress bars)
 // ---------------------------------------------------------------------------
+// Events go to the parent server process, which forwards them to this
+// session's browser tabs.
+function emit(type, payload) {
+  if (process.send) process.send({ type, payload });
+}
+
 function sendLog(level, text, source) {
-  if (!mainWindow) return;
-  mainWindow.webContents.send("console-log", {
+  emit("console-log", {
     level, // 'info' | 'ok' | 'warn' | 'error'
     text,
     source,
@@ -225,8 +225,7 @@ function sendLog(level, text, source) {
 }
 
 function sendProgress(stage, percent, status, message) {
-  if (!mainWindow) return;
-  mainWindow.webContents.send("stage-progress", {
+  emit("stage-progress", {
     stage,
     percent,
     status,
@@ -315,6 +314,27 @@ function fromContainerText(t) {
   return t.split(CROOT).join(ROOT_FWD);
 }
 
+// Added to every `docker run` the engine makes. All of it comes from the
+// server's own environment, never from a request.
+//  - a session label, so the server can find and kill this session's
+//    containers even if this process dies first;
+//  - the caches shared by every session, mounted over the (empty) per-session
+//    cache directories so the multi-GB model downloads happen once;
+//  - NB_DOCKER_RUN_ARGS: extra flags such as "--cpus 8 --memory 24g --pids-limit 4096".
+function sharedRunArgs() {
+  const out = [];
+  if (SESSION_ID) out.push("--label", `nb.session=${SESSION_ID}`);
+  const shared = process.env.NB_SHARED;
+  if (shared) {
+    out.push("-v", `${shared}/python:${CROOT}/python:ro`);
+    for (const d of ["hf", "torch"])
+      out.push("-v", `${shared}/${d}:${CROOT}/cache/${d}`);
+  }
+  if (process.env.NB_DOCKER_RUN_ARGS)
+    out.push(...process.env.NB_DOCKER_RUN_ARGS.split(/\s+/).filter(Boolean));
+  return out;
+}
+
 function runProcess(cmd, args, { cwd, source, env } = {}) {
   if (cmd === "docker" && args[0] === "run") {
     // The host side of a "-v host:container" mount must stay a host path, so
@@ -324,6 +344,7 @@ function runProcess(cmd, args, { cwd, source, env } = {}) {
     args = args.map((a, i) =>
       args[i - 1] === "-v" && a !== `${ROOT}:${ROOT}` ? a : toContainerArg(a),
     );
+    args = [args[0], ...sharedRunArgs(), ...args.slice(1)];
   }
   return new Promise((resolve, reject) => {
     // Honour a cancel that arrived before this stage got as far as spawning.
@@ -473,7 +494,7 @@ function dockerEndpointCandidates() {
   if (process.platform === "win32") {
     candidates.push({ socketPath: "\\\\.\\pipe\\docker_engine" });
   } else {
-    const home = app.getPath("home");
+    const home = os.homedir();
     for (const sock of [
       "/var/run/docker.sock",
       process.env.XDG_RUNTIME_DIR
@@ -867,7 +888,10 @@ function reclaimOwnership(paths, source) {
       "run",
       "--rm",
       "-v",
-      `${ROOT}:${ROOT}`,
+      // Mounted at CROOT, because the paths below are translated to it. This
+      // used to mount ROOT:ROOT, so chown looked for /nbroot/work in a
+      // container where only ROOT existed and always failed.
+      `${ROOT}:${CROOT}`,
       settings.dockerImage,
       "chown",
       "-R",
@@ -1625,23 +1649,21 @@ ipcMain.handle("score-candidates", async (_evt, params) => {
 // ---------------------------------------------------------------------------
 // IPC: Tab 3 - Screening
 // ---------------------------------------------------------------------------
-ipcMain.handle("import-metrics-dialog", async (_evt, { candidates }) => {
-  const res = await dialog.showOpenDialog(mainWindow, {
-    title: "Choose RF2 Metrics File",
-    filters: [{ name: "Metrics", extensions: ["json", "csv", "sc"] }],
-    properties: ["openFile"],
-  });
-  if (res.canceled || !res.filePaths[0]) return { candidates, imported: false };
+// The browser picks the file and sends its name and text; nothing on the
+// server's disk is read.
+ipcMain.handle("import-metrics-dialog", async (_evt, { candidates, fileName, text: fileText }) => {
+  if (typeof fileName !== "string" || typeof fileText !== "string")
+    return { candidates, imported: false };
 
-  const filePath = res.filePaths[0];
+  const filePath = path.basename(fileName);
   const ext = path.extname(filePath).toLowerCase();
   let parsedRows = [];
 
   if (ext === ".json") {
-    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const data = JSON.parse(fileText);
     parsedRows = Array.isArray(data) ? data : data.candidates || [];
   } else {
-    const text = fs.readFileSync(filePath, "utf8").trim();
+    const text = fileText.trim();
     const lines = text.split(/\r?\n/);
     const sep = ext === ".csv" ? "," : /\s+/;
     const header = lines[0].split(sep).map((h) => h.trim());
@@ -2023,9 +2045,17 @@ ipcMain.handle("build-plasmid", async (_evt, params) => {
   }
 });
 
+// Lists what the session has produced so the browser can offer downloads
+// (there is no folder to open on the user's machine).
 ipcMain.handle("open-output-folder", async () => {
-  await shell.openPath(DIRS.output);
-  return true;
+  return fs
+    .readdirSync(DIRS.output)
+    .filter((f) => /^[\w.-]+$/.test(f) && fs.statSync(path.join(DIRS.output, f)).isFile())
+    .map((f) => {
+      const st = fs.statSync(path.join(DIRS.output, f));
+      return { name: f, bytes: st.size, mtimeMs: st.mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
 });
 
 // ---------------------------------------------------------------------------
@@ -2434,51 +2464,73 @@ ipcMain.handle("save-settings", async (_evt, settings) =>
   saveSettingsToDisk(settings),
 );
 
+// Called once by the server at start-up so no user request waits on the
+// 281 MB RF2 download.
+ipcMain.handle("prefetch-rf2", async () => {
+  await ensureRf2Weights();
+  return true;
+});
+
 // ---------------------------------------------------------------------------
-// App lifecycle
+// Web: the whole design pipeline as one job
 // ---------------------------------------------------------------------------
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1100,
-    minHeight: 700,
-    backgroundColor: "#0f1115",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  mainWindow.setMenuBarVisibility(false);
-  if (process.env.DEBUG_CONSOLE_FORWARD) {
-    mainWindow.webContents.on(
-      "console-message",
-      (_e, level, message, line, sourceId) => {
-        console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
-      },
-    );
-  }
-  mainWindow.loadFile(path.join(ROOT, "renderer", "index.html"));
-  if (process.env.DEBUG_AUTOTEST_PDB) {
-    mainWindow.webContents.once("did-finish-load", () => {
-      setTimeout(() => {
-        mainWindow.webContents.executeJavaScript(`
-          document.getElementById('pdb-id-input').value = '${process.env.DEBUG_AUTOTEST_PDB}';
-          document.getElementById('btn-analyze').click();
-        `);
-      }, 500);
-    });
-  }
+// The desktop renderer drove the four stages itself, one call at a time. On a
+// shared GPU that would let another user's job slip in between two stages and
+// would leave the per-user quota to the browser, so the server runs them as a
+// single queued job instead. Same handlers, same order, same arguments.
+const SCAFFOLD_FILE = `${DOCKER_TOOL_PATHS.rfantibodyDir}/scripts/examples/example_inputs/h-NbBCII10.pdb`;
+
+// The values below are interpolated into a `bash -lc` string by the RFantibody
+// stages. server/validate.js has already checked them; this checks again
+// right at the point of use, so a mistake there cannot become command
+// injection.
+function assertDesignParamsSafe(p) {
+  const fail = (what) => {
+    throw new Error(`Refusing to run: invalid ${what}.`);
+  };
+  if (!/^[A-Z0-9]{4}$/.test(p.pdbId)) fail("PDB ID");
+  if (!/^H1:\d{1,2},H2:\d{1,2},H3:\d{1,2}$/.test(p.designLoops)) fail("loop lengths");
+  if (!Array.isArray(p.hotspotResidues) || !p.hotspotResidues.every((n) => Number.isInteger(n) && n > 0 && n < 100000))
+    fail("hotspots");
+  for (const k of ["numDesigns", "designsPerBackbone", "numRecycles"])
+    if (!Number.isInteger(p[k]) || p[k] < 1 || p[k] > 1000) fail(k);
+  if (typeof p.temperature !== "number" || !(p.temperature > 0 && p.temperature <= 1)) fail("temperature");
+  if (!/^[\w./-]+$/.test(p.targetPdbPath) || !p.targetPdbPath.startsWith(ROOT + path.sep)) fail("target path");
 }
 
-app.whenReady().then(createWindow);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+ipcMain.handle("run-design", async (_evt, p) => {
+  assertDesignParamsSafe(p);
+  resetPipelineCancel();
+  const rfd = await handlers["run-rfdiffusion"](null, {
+    targetPdbPath: p.targetPdbPath,
+    pdbId: p.pdbId,
+    scaffoldFilePath: SCAFFOLD_FILE,
+    outputName: `${p.pdbId}_${Date.now()}`,
+    numDesigns: p.numDesigns,
+    designLoops: p.designLoops,
+    hotspotResidues: p.hotspotResidues,
+  });
+  if (!rfd.backbones.length) throw new Error("RFdiffusion produced no backbones.");
+  const mpnn = await handlers["run-proteinmpnn"](null, {
+    backboneDir: rfd.backboneDir,
+    designsPerBackbone: p.designsPerBackbone,
+    temperature: p.temperature,
+  });
+  const rf2 = await handlers["run-rf2"](null, {
+    seqDir: mpnn.seqDir,
+    numRecycles: p.numRecycles,
+  });
+  const scoring = await handlers["score-candidates"](null, {
+    rf2OutDir: rf2.rf2OutDir,
+    backboneDir: rfd.backboneDir,
+    cdr: p.cdr,
+  });
+  return {
+    ...rfd,
+    seqDir: mpnn.seqDir,
+    rf2OutDir: rf2.rf2OutDir,
+    candidates: scoring.candidates || [],
+  };
 });
 
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
+module.exports = { handlers, DIRS, ROOT, cancelPipeline, resetPipelineCancel };

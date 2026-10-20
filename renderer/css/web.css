@@ -1,0 +1,8 @@
+/* Web-version overrides: things that only make sense in the desktop app. */
+#btn-settings,
+#install-banner {
+  display: none !important;
+}
+#gpu-badge {
+  pointer-events: none;
+}

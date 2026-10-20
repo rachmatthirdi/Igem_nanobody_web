@@ -1,0 +1,10 @@
+# TLS terminator and reverse proxy. SITE_ADDRESS is a domain name for automatic
+# HTTPS (e.g. catchers.example.ac.id), or ":80" for plain HTTP behind another
+# proxy / on an internal network.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# Server-sent events (the live console) must not be buffered.
+		flush_interval -1
+	}
+}

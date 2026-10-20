@@ -1,8 +1,9 @@
-node_modules
-work
-cache
-output
-projects
 .git
-.trunk
-*.log
+node_modules
+data
+docs
+tests
+docker
+scripts/nbtool.sh
+*.md
+.env

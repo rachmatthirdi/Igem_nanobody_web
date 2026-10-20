@@ -317,51 +317,59 @@
     $("btn-run-pipeline").disabled = true;
     $("btn-stop-pipeline").disabled = false;
 
+    // Badges follow the server's stage-progress events: the four stages now run
+    // as one queued job instead of four calls from this page.
+    const STAGE_BADGE = {
+      rfdiffusion: ["badge-rfdiffusion"],
+      proteinmpnn: ["badge-proteinmpnn"],
+      "rf2-weights": ["badge-rf2-weights"],
+      rf2: ["badge-rf2"],
+    };
+    const stopStageEvents = window.api.onStageProgress((p) => {
+      for (const id of STAGE_BADGE[p.stage] || []) {
+        if (p.status === "running") setBadge(id, "Running...", "badge-running");
+        else if (p.status === "done") setBadge(id, "Done", "badge-ok");
+      }
+    });
+
     try {
-      setBadge("badge-rfdiffusion", "Running...", "badge-running");
-      const rfd = await window.api.runRfdiffusion({
-        targetPdbPath: window.AppState.chainAPath,
-        pdbId: window.AppState.pdbId,
-        scaffoldFilePath: window.AppState.scaffold.filePath,
-        outputName: `${window.AppState.pdbId}_${Date.now()}`,
-        numDesigns: cfg.backbone_number,
-        designLoops: cfg.cdr_config,
-        hotspotResidues: window.AppState.hotspotResidues,
-      });
-      window.AppState.backbones = rfd.backbones;
-      window.AppState.backboneDir = rfd.backboneDir;
-      window.AppState.targetTPath = rfd.targetTPath;
+      PIPELINE_BADGES.forEach((id) => setBadge(id, "Queued...", "badge-running"));
+      const run = await window.api.runDesign(
+        {
+          targetPdbPath: window.AppState.chainAPath,
+          pdbId: window.AppState.pdbId,
+          designLoops: cfg.cdr_config,
+          hotspotResidues: window.AppState.hotspotResidues,
+          numDesigns: cfg.backbone_number,
+          designsPerBackbone: cfg.mpnn_designs,
+          temperature: cfg.mpnn_temperature,
+          numRecycles: 10,
+          cdr: window.AppState.scaffold.cdr,
+        },
+        (job) => {
+          // Waiting behind other users' designs on the shared GPU.
+          if (job.status === "queued") {
+            const where = job.position
+              ? `Queued (position ${job.position} of ${job.queueLength})`
+              : "Queued...";
+            PIPELINE_BADGES.forEach((id) => setBadge(id, where, "badge-running"));
+          }
+        },
+      );
+      window.AppState.backbones = run.backbones;
+      window.AppState.backboneDir = run.backboneDir;
+      window.AppState.targetTPath = run.targetTPath;
+      window.AppState.seqDir = run.seqDir;
+      window.AppState.rf2OutDir = run.rf2OutDir;
       setBadge(
         "badge-rfdiffusion",
-        `Done (${rfd.backbones.length} backbones)`,
+        `Done (${run.backbones.length} backbones)`,
         "badge-ok",
       );
-
-      setBadge("badge-proteinmpnn", "Running...", "badge-running");
-      const mpnn = await window.api.runProteinMpnn({
-        backboneDir: rfd.backboneDir,
-        designsPerBackbone: cfg.mpnn_designs,
-        temperature: cfg.mpnn_temperature,
-      });
-      window.AppState.seqDir = mpnn.seqDir;
       setBadge("badge-proteinmpnn", "Done", "badge-ok");
-
-      setBadge("badge-rf2-weights", "Running...", "badge-running");
-      setBadge("badge-rf2", "Running...", "badge-running");
-      const rf2 = await window.api.runRf2({
-        seqDir: mpnn.seqDir,
-        numRecycles: 10,
-      });
-      window.AppState.rf2OutDir = rf2.rf2OutDir;
       setBadge("badge-rf2-weights", "Done", "badge-ok");
       setBadge("badge-rf2", "Done", "badge-ok");
-
-      const scoring = await window.api.scoreCandidates({
-        rf2OutDir: rf2.rf2OutDir,
-        backboneDir: rfd.backboneDir,
-        cdr: window.AppState.scaffold.cdr,
-      });
-      window.AppState.candidates = scoring.candidates || [];
+      window.AppState.candidates = run.candidates || [];
       window.ConsolePanel.log(
         "ok",
         `${window.AppState.candidates.length} candidates ready for screening.`,
@@ -398,7 +406,7 @@
       if (!stopped)
         window.Notice.fromError($("design-notice"), e, "The design run failed");
       PIPELINE_BADGES.forEach((id) => {
-        if ($(id).textContent.includes("Running"))
+        if (/Running|Queued/.test($(id).textContent))
           setBadge(
             id,
             stopped ? "Stopped" : "Failed",
@@ -406,6 +414,7 @@
           );
       });
     } finally {
+      stopStageEvents();
       pipelineRunning = false;
       $("btn-run-pipeline").disabled = false;
       $("btn-stop-pipeline").disabled = true;

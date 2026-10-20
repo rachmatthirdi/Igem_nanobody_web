@@ -1,23 +1,22 @@
 {
-  "name": "nanobody-designer",
+  "name": "catchers-generator-web",
   "version": "0.1.0",
-  "description": "CATCHERs Generator, a nanobody design GUI: Target -> Design -> Screening -> Construct",
-  "main": "electron/main.js",
+  "description": "CATCHERs Generator web service: Target -> Design -> Screening -> Construct, run on a shared server",
+  "main": "server/index.js",
   "author": "CATCHERs",
   "license": "MIT",
   "private": true,
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
+    "start": "node server/index.js",
     "test": "npm run test:js && npm run test:py",
-    "test:js": "node tests/aa.test.js && node tests/disk-space.test.js",
+    "test:js": "node --test \"tests/*.test.js\"",
     "test:py": "python3 -m unittest discover -s tests -p \"test_*.py\""
-  },
-  "devDependencies": {
-    "electron": "^41.10.7"
   },
   "dependencies": {
     "lucide": "^1.59.0",
     "pdbe-molstar": "3.1.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

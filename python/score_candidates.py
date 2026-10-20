@@ -5,17 +5,35 @@ H3 RMSD, ΔG (PRODIGY).
 Usage:
   python score_candidates.py --rf2_dir <dir> --backbone_dir <dir> --cdr_json <cdr.json> --out <out.json>
 
+Where each metric comes from:
+
+  pLDDT      RFantibody writes RF2's own scores into every predicted PDB as
+             `SCORE <key>: <value>` lines, so `pred_lddt` is read from there
+             (a 0-1 fraction, rescaled to 0-100). If it is missing, the "Best
+             pLDDT" that RF2 prints on stdout is used: the Electron main
+             process saves it in a same-stem `*_metrics.json` sidecar. As a
+             last resort the PDB B-factor column is read, but RF2 leaves it
+             zeroed, so that path normally yields 0.
+  PAE        `pae` from the same SCORE lines. `interaction_pae` is read and
+             returned too, but the app does not use it in the composite score.
+             If `pae` is missing, a same-stem companion file is searched
+             (.json/.sc/_metrics.json/_scores.json). If nothing is found it is
+             left null rather than guessed.
+  CDR RMSD,  Computed here, not taken from RF2: a Kabsch superposition on
+  H3 RMSD    framework CA atoms between each RF2 prediction and its originating
+             RFdiffusion backbone, then the CA RMSD of the three CDR loops
+             together and of H3 alone. The backbone is matched by file-name
+             prefix. If none matches, the first backbone in --backbone_dir is
+             used and a warning is printed, so the RMSD is then measured
+             against a possibly wrong backbone. Left null only when there is no
+             backbone PDB at all or fewer than 3 framework residues are shared.
+  dG         PRODIGY, run as `prodigy -q <pdb> --selection H T` (chains H and
+             T). Left null when PRODIGY is missing or fails.
+
 Important caveat (also surfaced in the app): RFantibody's directory-mode RF2
-output does not have a fully documented, versioned schema for per-candidate
-confidence/metrics files. pLDDT is read from the predicted PDB's B-factor
-column (the near-universal convention for per-residue confidence in
-structure-prediction tools). PAE is looked up heuristically from a
-same-stem companion metrics file (.json/.sc/_metrics.json/_scores.json) if
-one exists next to the predicted PDB; if the file/keys aren't found it is
-left null rather than guessed. CDR RMSD / H3 RMSD are computed directly here
-via a manual Kabsch superposition (framework CA atoms) between each RF2
-prediction and its originating RFdiffusion backbone, since RF2 does not
-report per-loop RMSD itself.
+output does not have a fully documented, versioned schema. The keys above are
+the ones seen in real output, so a different RF2 release may rename them. A
+metric that cannot be found is left null instead of being estimated.
 """
 
 import argparse
@@ -220,7 +238,7 @@ def match_backbone(candidate_stem, backbone_files):
         return stems[best]
     if backbone_files:
         print(
-            f"WARNING: tidak ada backbone yang cocok untuk {candidate_stem}, menggunakan {os.path.basename(backbone_files[0])} sebagai fallback."
+            f"WARNING: no backbone matches {candidate_stem}; using {os.path.basename(backbone_files[0])} instead."
         )
         return backbone_files[0]
     return None
@@ -296,7 +314,7 @@ def main():
                     h3_rmsd = rmsd(p_h3_aligned, q_h3)
             else:
                 print(
-                    f"WARNING: residu framework tidak cukup untuk Kabsch alignment pada {stem}."
+                    f"WARNING: could not compute CDR/H3 RMSD for {stem} (fewer than 3 shared framework residues for the Kabsch alignment)."
                 )
         else:
             print(
