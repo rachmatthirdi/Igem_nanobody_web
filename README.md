@@ -31,6 +31,9 @@ total, **1 ProteinMPNN sequence** per backbone, loop lengths 5–30, one design
 job at a time, and a short shared queue. These are enforced on the server, not
 only in the page.
 
+Results are also published to a read-only **shared gallery** that any visitor
+can browse; each result is kept for 7 days (see [DEPLOY.md](DEPLOY.md)).
+
 Visitors have no account. A cookie identifies a browser session whose
 workspace is deleted after a period of inactivity (72 hours by default).
 

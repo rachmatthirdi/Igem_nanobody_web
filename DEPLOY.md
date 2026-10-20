@@ -92,6 +92,9 @@ All in `.env` (see `.env.example` for the defaults).
 | `NB_MAX_QUEUE` | 5 | Design jobs allowed to wait for the GPU. |
 | `NB_LIGHT_CONCURRENCY` | 3 | FreeSASA / DiscoTope / codon calls running at once. |
 | `NB_JOB_TIMEOUT_MIN` | 180 | A design job is stopped after this long. |
+| `NB_SHARED_RETENTION_DAYS` | 7 | How long each shared result stays visible (see "Shared results"). |
+| `NB_SHARED_MAX_ENTRIES` | 2000 | Most shared results kept; past this the oldest go first. |
+| `NB_SHARED_MAX_ENTRY_MB` | 100 | Largest single shared result. |
 | `NB_SESSION_TTL_HOURS` | 72 | Idle sessions (and their files) are deleted after this. |
 | `NB_SESSION_DISK_MB` | 2000 | A session over this size cannot start a design. |
 | `NB_GPU_MODE` | `auto` | `off` forces CPU; `on` forces `--gpus all` if the start-up probe failed. |
@@ -110,6 +113,26 @@ folders into them. The daemon resolves those paths on the host, not inside the
 `app` container, so each folder must have the same absolute path on both sides.
 That is why `docker-compose.yml` mounts `${NB_DATA}:${NB_DATA}`. Use an absolute
 path without spaces or colons.
+
+### Shared results
+
+Everything the service produces is also copied to a **public, read-only
+gallery** (the library icon in the header): target analyses (FreeSASA,
+DiscoTope, InterPro, per PDB ID), designs (scored candidates and their
+structures) and constructs (the FASTA). Any visitor can open them without
+creating a session. **Each result is deleted `NB_SHARED_RETENTION_DAYS` (7) days
+after it was produced**; running the same analysis again replaces the entry and
+restarts its clock.
+
+- Only data made by the server is published, never state sent by the browser,
+  and the page shows it as plain text, so a visitor cannot put text or markup
+  in front of others.
+- The gallery tells visitors that results are public. **Anything a user runs is
+  visible to every visitor for 7 days**, including the target and the sequences
+  designed. There is no opt-out; add one if users may work on unpublished targets.
+- Expired results stop being served immediately and are deleted from disk by a
+  sweep every 10 minutes and at start-up. Files live in `NB_DATA/shared/results/`.
+- The gallery is rate limited per IP address (2 requests per second).
 
 ## 4. Operating it
 
@@ -148,8 +171,9 @@ and finished results are files in `NB_DATA` and survive restarts. Back up
   limit matters, put campus login in front of the site and map it to a stable
   identifier; that is not built.
 - **Privacy.** Sessions store the PDB IDs, sequences and results users produce,
-  in `NB_DATA/sessions/<id>/`, for `NB_SESSION_TTL_HOURS` after last use. Say so
-  on the site.
+  in `NB_DATA/sessions/<id>/`, for `NB_SESSION_TTL_HOURS` after last use, and
+  the same results are **public** in the shared gallery for 7 days (see above).
+  The site says so; check that the wording suits your project.
 - **Licences.** DiscoTope-3.0 is licensed for non-commercial use and the RF2
   weights are under the Rosetta-DL (non-commercial) licence. A free, academic,
   non-commercial service is the intended use; running it as a paid or
@@ -176,12 +200,27 @@ tools image:
 - A second design from the same session is refused while one is active; the
   quota is charged at start (2 of 10 for a 2-backbone job).
 - Request validation, CSRF/cross-origin refusal, path confinement, quota, queue
-  order, queue-full, refund rules and session expiry: 43 JavaScript and 21
-  Python tests (`npm test`), no Docker needed. The queue and quota tests were
-  checked by breaking the code on purpose and confirming they fail.
+  order, queue-full, refund rules, session expiry, and the shared-results store
+  (7-day expiry on each result's own clock, sweep, file confinement): 54
+  JavaScript and 21 Python tests (`npm test`), no Docker needed. The queue,
+  quota and store tests were checked by breaking the code on purpose and
+  confirming they fail.
+- Three sessions at once with real containers: parallel PDB downloads and
+  FreeSASA runs did not collide; with design jobs submitted by A, B and C only
+  one container ran at a time, in order; a queued job could be cancelled
+  without disturbing the running one; cancelling the running job started the
+  next; one session could not read another's job or workspace; no containers
+  were left behind and every quota returned to zero.
+- Shared results in a real browser: a target analysis and a construct produced
+  through the server appeared for a visitor with no session, opened with their
+  tables and FASTA, and a result disappeared from the list after its (shortened)
+  retention. The design entry shown in that test was **test data written
+  through the real publisher**, because no design could finish on this machine.
 
 **Not checked, because it needs your server:**
 
+- **Publishing a finished design to the gallery from a real job**, and the 3D
+  preview in the gallery (the test browser had no WebGL).
 - **A design run to completion.** Only the start and the stop were exercised;
   RFdiffusion -> ProteinMPNN -> RF2 -> scoring as one job, and the results
   reaching the Screening tab, were not run end to end in this web version (the

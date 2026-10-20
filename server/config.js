@@ -43,6 +43,12 @@ module.exports = {
   lightTimeoutMs: int("NB_LIGHT_TIMEOUT_MIN", 15) * 60_000,
   gpuMode: env.NB_GPU_MODE || "auto", // auto | on | off
 
+  // Results every visitor can browse (analysis, designs, constructs). Each one
+  // is deleted this long after it was produced.
+  sharedRetentionDays: int("NB_SHARED_RETENTION_DAYS", 7),
+  sharedMaxEntries: int("NB_SHARED_MAX_ENTRIES", 2000),
+  sharedMaxEntryBytes: int("NB_SHARED_MAX_ENTRY_MB", 100) * 1024 * 1024,
+
   // Hygiene.
   sessionTtlMs: int("NB_SESSION_TTL_HOURS", 72) * 3_600_000,
   sessionDiskBytes: int("NB_SESSION_DISK_MB", 2000) * 1024 * 1024,

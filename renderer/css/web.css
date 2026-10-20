@@ -6,3 +6,21 @@
 #gpu-badge {
   pointer-events: none;
 }
+
+/* Shared results */
+.shared-content {
+  max-width: 980px;
+  width: 92vw;
+  max-height: 88vh;
+  overflow: auto;
+}
+.shared-viewer {
+  position: relative;
+  height: 380px;
+  margin-top: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.shared-content h4 {
+  margin: 16px 0 6px;
+}

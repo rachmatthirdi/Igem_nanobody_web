@@ -9,9 +9,13 @@ const config = require("./config");
 const { Sessions } = require("./sessions");
 const { Runner, HttpError } = require("./runner");
 const { validate, ValidationError, LOCAL_CHANNELS, QUEUED_CHANNELS } = require("./validate");
+const { Store } = require("./store");
+const { publishTarget, publishDesign, publishConstruct } = require("./publish");
 
 const sessions = new Sessions(config);
 const runner = new Runner(config, sessions);
+const store = new Store(config);
+runner.onDone = (job) => publishDesign(store, job.session.dir, job);
 const RENDERER = path.join(config.appDir, "renderer");
 let scaffoldCache = null;
 
@@ -180,6 +184,7 @@ function limitsFor(session) {
 // Routes
 // ---------------------------------------------------------------------------
 async function handleApi(req, res, url) {
+  if (url.pathname === "/api/shared" || url.pathname.startsWith("/api/shared/")) return handleShared(req, res, url);
   const session = sessionFor(req, res);
   if (!sessions.take(session)) throw new HttpError(429, "Too many requests. Slow down a little.");
 
@@ -253,10 +258,78 @@ async function handleApi(req, res, url) {
       return json(res, 200, { result: await scaffoldCache });
     }
     const value = await runner.light(session, channel, args);
+    publishLightResult(session, channel, args, value);
     return json(res, 200, { result: value });
   }
 
   throw new HttpError(404, "Not found.");
+}
+
+// Copies a finished analysis or construct into the shared store. A failure
+// here is logged and never reaches the user: their own result is fine.
+function publishLightResult(session, channel, args, value) {
+  try {
+    const stem = (p) => /([A-Z0-9]{4})_chainA\.pdb$/.exec(String(p))?.[1];
+    if (channel === "fetch-pdb") {
+      // Browsing a structure is not a result; only name an entry that exists.
+      if (!store.getMeta(`target-${value.pdbId}`)) publishTarget(store, value.pdbId, { title: value.title });
+    } else if (channel === "run-freesasa") {
+      const id = stem(args[0].chainAPath);
+      if (id) publishTarget(store, id, { sasa: value.residues });
+    } else if (channel === "run-discotope") {
+      publishTarget(store, args[0].pdbId, { discotope: value.residues });
+    } else if (channel === "run-interpro") {
+      publishTarget(store, args[0].pdbId, { domains: value.domains });
+    } else if (channel === "build-plasmid") {
+      publishConstruct(store, session.dir, args[0], value, require("crypto").randomBytes(4).toString("hex"));
+    }
+  } catch (e) {
+    console.error(`Could not publish ${channel}: ${e.message}`);
+  }
+}
+
+// Read-only and public: no session is created or needed. Rate limited per
+// address instead.
+const ipTokens = new Map();
+function ipAllowed(ip) {
+  const now = Date.now();
+  const b = ipTokens.get(ip) || { t: 20, at: now };
+  b.t = Math.min(20, b.t + ((now - b.at) / 1000) * 2);
+  b.at = now;
+  ipTokens.set(ip, b);
+  if (b.t < 1) return false;
+  b.t -= 1;
+  return true;
+}
+
+function handleShared(req, res, url) {
+  if (req.method !== "GET") throw new HttpError(405, "Method not allowed.");
+  if (!ipAllowed(clientIp(req))) throw new HttpError(429, "Too many requests. Slow down a little.");
+
+  if (url.pathname === "/api/shared") {
+    const kind = url.searchParams.get("kind") || undefined;
+    if (kind && !["target", "design", "construct"].includes(kind)) throw new HttpError(400, "Unknown kind.");
+    const pdb = (url.searchParams.get("pdb") || "").toUpperCase() || undefined;
+    if (pdb && !/^[A-Z0-9]{4}$/.test(pdb)) throw new HttpError(400, "Invalid PDB ID.");
+    const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 50));
+    return json(res, 200, { retentionDays: config.sharedRetentionDays, entries: store.list({ kind, pdbId: pdb, limit }) });
+  }
+
+  const m = /^\/api\/shared\/([A-Za-z0-9_-]{1,60})(?:\/file\/([A-Za-z0-9_.-]{1,130}))?$/.exec(url.pathname);
+  if (!m) throw new HttpError(404, "Not found.");
+  if (!m[2]) {
+    const entry = store.getData(m[1]);
+    if (!entry) throw new HttpError(404, "No such result (it may have expired).");
+    return json(res, 200, entry);
+  }
+  const file = store.filePath(m[1], m[2]);
+  if (!file) throw new HttpError(404, "No such file.");
+  const download = url.searchParams.get("download") === "1";
+  return send(res, 200, fs.readFileSync(file), {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-store",
+    ...(download ? { "Content-Disposition": `attachment; filename="${m[2]}"` } : {}),
+  });
 }
 
 function serveStatic(req, res, url) {
@@ -316,6 +389,8 @@ async function start() {
   setInterval(() => {
     const n = sessions.sweep();
     if (n) console.log(`Removed ${n} expired session(s).`);
+    const r = store.sweep();
+    if (r) console.log(`Removed ${r} expired shared result(s).`);
   }, 10 * 60_000).unref();
   await runner.boot((m) => console.log(m));
   console.log("Ready.");

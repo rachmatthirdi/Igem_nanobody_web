@@ -26,6 +26,9 @@
           <span id="gpu-badge" class="badge badge-muted"
             ><i data-lucide="cpu"></i> GPU: checking...</span
           >
+          <button id="btn-shared" aria-label="Shared results" class="icon-btn" title="Shared results - what others have generated">
+            <i data-lucide="library"></i>
+          </button>
           <button id="btn-settings" aria-label="Settings" class="icon-btn" title="Settings">
             <i data-lucide="settings"></i>
           </button>
@@ -553,6 +556,9 @@
                 </div>
                 <div id="design-notice"></div>
                 <div class="section-hint" id="pipeline-eta-hint"></div>
+                <div class="section-hint">
+                  Finished results are shared publicly in "Shared results" (library icon, top right) and deleted after 7 days.
+                </div>
                 <div class="tab-footer-actions">
                   <button id="btn-run-pipeline" class="btn btn-primary">
                     <i data-lucide="play"></i> Run design
@@ -845,6 +851,33 @@
         <div id="console-body"></div>
       </footer>
 
+      <!-- ==================== SHARED RESULTS MODAL (web) ==================== -->
+      <div id="shared-modal" class="modal hidden">
+        <div class="modal-content shared-content" role="dialog" aria-modal="true" aria-labelledby="shared-title">
+          <h2 id="shared-title"><i data-lucide="library"></i> Shared results</h2>
+          <p class="section-hint">
+            Results produced on this server are public: every visitor can see
+            them, and each one is deleted <span id="shared-retention">7 days</span>
+            after it was produced. Do not run anything you need to keep private.
+          </p>
+          <div class="form-row">
+            <label for="shared-kind">Type</label>
+            <select id="shared-kind">
+              <option value="">All</option>
+              <option value="target">Target analysis</option>
+              <option value="design">Design</option>
+              <option value="construct">Construct</option>
+            </select>
+            <label for="shared-pdb">PDB ID</label>
+            <input type="text" id="shared-pdb" maxlength="4" placeholder="e.g. 1ZVH" />
+          </div>
+          <div id="shared-body"></div>
+          <div class="modal-actions">
+            <button id="btn-shared-close" class="btn btn-ghost">Close</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ==================== SETTINGS MODAL ==================== -->
       <div id="settings-modal" class="modal hidden"> <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="settings-title"> <h2 id="settings-title"><i data-lucide="settings"></i> Settings</h2>
 
@@ -1005,6 +1038,7 @@
     </div>
 
     <script defer src="js/web-api.js"></script>
+    <script defer src="js/shared-results.js"></script>
     <script defer src="../node_modules/lucide/dist/umd/lucide.min.js"></script>
     <script defer src="js/icons.js"></script>
     <script defer src="js/state.js"></script>

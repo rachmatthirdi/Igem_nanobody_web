@@ -29,6 +29,7 @@ class Runner {
     this.lightWaiting = [];
     this.ready = false; // false until boot tasks (weights, GPU probe) are done
     this.bootError = null;
+    this.onDone = null; // called with a finished design job
     this.jobs = new Map(); // id -> job, recent ones only
   }
 
@@ -235,6 +236,11 @@ class Runner {
         },
       });
       job.status = "done";
+      try {
+        if (this.onDone) this.onDone(job);
+      } catch (e) {
+        console.error(`Could not publish design ${job.id}: ${e.message}`);
+      }
     } catch (e) {
       job.status = e.cancelled || job.cancelRequested ? "cancelled" : "error";
       job.error = e.cancelled || job.cancelRequested ? "Cancelled by user." : e.message;
