@@ -107,6 +107,25 @@ function sessionPdbPath(v, root) {
   return abs;
 }
 
+// A result folder the design job wrote: directly under the session's work/
+// folder and named like the engine names them (<PDBID>_<digits> for backbones,
+// rf2_out_<digits> for RF2 predictions). It is passed to a container, so it
+// must be a real directory inside the session, not a link pointing out of it.
+function workDir(v, root, namePattern, what) {
+  if (typeof v !== "string" || v.length > 512 || v.includes("\0")) bad(`Invalid ${what}.`);
+  const abs = path.resolve(v);
+  const dir = path.join(root, "work");
+  if (path.dirname(abs) !== dir || !namePattern.test(path.basename(abs))) bad(`Invalid ${what}.`);
+  let st;
+  try {
+    st = fs.lstatSync(abs);
+  } catch {
+    bad(`There is no ${what} to score in this session.`);
+  }
+  if (!st.isDirectory()) bad(`Invalid ${what}.`);
+  return abs;
+}
+
 function cdr(v) {
   obj(v, "cdr");
   const out = {};
@@ -154,6 +173,18 @@ const SHAPES = {
         chainAPath: chainAPath(p.chainAPath, ctx.root),
         pdbId: pdbId(p.pdbId),
         forceRefresh: bool(p.forceRefresh),
+      },
+    ];
+  },
+  // Scores the designs of this session's last run again. Only the two result
+  // folders and the loop positions are taken from the request.
+  "score-candidates": (a, ctx) => {
+    const p = obj(a[0]);
+    return [
+      {
+        rf2OutDir: workDir(p.rf2OutDir, ctx.root, /^rf2_out_\d{1,16}$/, "RF2 output folder"),
+        backboneDir: workDir(p.backboneDir, ctx.root, /^[A-Z0-9]{4}_\d{1,16}$/, "backbone folder"),
+        cdr: cdr(p.cdr ?? {}),
       },
     ];
   },

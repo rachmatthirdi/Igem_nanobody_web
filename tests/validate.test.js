@@ -97,7 +97,7 @@ test("PDB IDs are exactly four letters or digits", () => {
 });
 
 test("unknown, disabled and prototype-chain channel names are refused", () => {
-  for (const ch of ["run-docker-build", "pull-docker-image", "run-rfdiffusion", "score-candidates",
+  for (const ch of ["run-docker-build", "pull-docker-image", "run-rfdiffusion",
     "constructor", "__proto__", "toString", "hasOwnProperty"]) {
     assert.throws(() => validate(ch, [], ctx), (e) => e instanceof ValidationError && e.status === 404, ch);
   }
@@ -143,4 +143,41 @@ test("metrics upload is size- and type-limited", () => {
 test("arguments must be a short array", () => {
   assert.throws(() => validate("fetch-pdb", "2Z1P", ctx), ValidationError);
   assert.throws(() => validate("fetch-pdb", [1, 2, 3, 4, 5], ctx), ValidationError);
+});
+
+test("score-candidates only accepts this session's own result folders", () => {
+  const work = path.join(root, "work");
+  const rf2 = path.join(work, "rf2_out_1700000000000");
+  const bb = path.join(work, "2Z1P_1700000000000");
+  fs.mkdirSync(rf2, { recursive: true });
+  fs.mkdirSync(bb, { recursive: true });
+  const cdr = { H3: { start: 10, end: 12, residues: [10, 11, 12] } };
+
+  const [p] = validate(
+    "score-candidates",
+    [{ rf2OutDir: rf2, backboneDir: bb, cdr, toolsEnvOverride: "evil", extra: 1 }],
+    ctx,
+  );
+  assert.deepEqual(Object.keys(p).sort(), ["backboneDir", "cdr", "rf2OutDir"]);
+  assert.equal(p.rf2OutDir, rf2);
+
+  const ok = { rf2OutDir: rf2, backboneDir: bb, cdr };
+  rejects("score-candidates", [{ ...ok, rf2OutDir: "/etc" }]);
+  rejects("score-candidates", [{ ...ok, rf2OutDir: path.join(work, "..", "..", "etc") }]);
+  rejects("score-candidates", [{ ...ok, backboneDir: path.join(work, "other_dir") }]);
+  rejects("score-candidates", [{ ...ok, backboneDir: path.join(work, "2Z1P_1", "sub") }]);
+  rejects("score-candidates", [{ ...ok, rf2OutDir: path.join(work, "rf2_out_999") }]); // does not exist
+  rejects("score-candidates", [{ ...ok, cdr: { X9: {} } }]);
+  rejects("score-candidates", [{ ...ok, rf2OutDir: 5 }]);
+  rejects("score-candidates", []);
+});
+
+test("score-candidates refuses a link that points out of the session", () => {
+  const work = path.join(root, "work");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "nbv-out-"));
+  const link = path.join(work, "rf2_out_42");
+  fs.symlinkSync(outside, link);
+  const bb = path.join(work, "2Z1P_1700000000000");
+  fs.mkdirSync(bb, { recursive: true });
+  rejects("score-candidates", [{ rf2OutDir: link, backboneDir: bb, cdr: {} }]);
 });

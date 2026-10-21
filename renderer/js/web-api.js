@@ -218,9 +218,7 @@
     cancelPipeline: call("cancel-pipeline"),
 
     importMetricsDialog,
-    // The server scores every candidate at the end of the design job, and its
-    // scoring channel is deliberately not exposed to browsers.
-    scoreCandidates: unavailable("Scoring again"),
+    scoreCandidates: call("score-candidates"),
     codonOptimize: call("codon-optimize"),
     calculateCai: call("calculate-cai"),
 
